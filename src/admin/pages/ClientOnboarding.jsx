@@ -15,6 +15,15 @@ function genPassword() {
   return p
 }
 
+function formatPhone(value) {
+  const d = (value || '').replace(/\D/g, '').slice(0, 11)
+  if (d.length === 0) return ''
+  if (d.length <= 2) return `(${d}`
+  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`
+  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`
+  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
+}
+
 function makeSlug(name) {
   return name.trim().toLowerCase()
     .normalize('NFD').replace(/[̀-ͯ]/g, '')
@@ -701,8 +710,8 @@ Qualquer dúvida estou aqui! 😊`
                   <div>
                     <label className="text-[11px] font-bold text-gray-400 uppercase block mb-1.5">WhatsApp *</label>
                     <input
-                      value={storeForm.whatsapp}
-                      onChange={e => setStoreForm(f => ({ ...f, whatsapp: e.target.value }))}
+                      value={formatPhone(storeForm.whatsapp)}
+                      onChange={e => setStoreForm(f => ({ ...f, whatsapp: e.target.value.replace(/\D/g, '').slice(0, 11) }))}
                       placeholder="(00) 00000-0000"
                       className={inp}
                     />
@@ -720,8 +729,8 @@ Qualquer dúvida estou aqui! 😊`
                       <div className="w-full">
                         <label className="text-[11px] font-bold text-gray-400 uppercase block mb-1.5">Telefone fixo</label>
                         <input
-                          value={storeForm.phone}
-                          onChange={e => setStoreForm(f => ({ ...f, phone: e.target.value }))}
+                          value={formatPhone(storeForm.phone)}
+                          onChange={e => setStoreForm(f => ({ ...f, phone: e.target.value.replace(/\D/g, '').slice(0, 11) }))}
                           placeholder="(00) 0000-0000"
                           className={inp}
                         />
