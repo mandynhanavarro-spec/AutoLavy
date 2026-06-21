@@ -555,16 +555,16 @@ export default function ClientOnboarding({ org, isNew = false, plans = [], segme
   const hasUncreatedEmployees = newEmployees.length > 0 &&
     successfulTeam.length < newEmployees.length
 
-  const teamMsgEntries = isNew
-    ? successfulTeam.map(e =>
-        `▪️ ${e.name} (${e.role.charAt(0).toUpperCase() + e.role.slice(1)})\n👤 Login: ${e.email}\n🔑 Senha: ${e.password}`)
-    : existingMembers.map(m => {
-        const sessionData = successfulTeam.find(t => t.userId === m.id)
+  const teamMsgEntries = [
+    ...successfulTeam.map(e =>
+      `▪️ ${e.name} (${e.role.charAt(0).toUpperCase() + e.role.slice(1)})\n👤 Login: ${e.email}\n🔑 Senha: ${e.password}`),
+    ...existingMembers
+      .filter(m => !successfulTeam.some(t => t.userId === m.id))
+      .map(m => {
         const roleCap = (m.role || '').charAt(0).toUpperCase() + (m.role || '').slice(1)
-        return sessionData
-          ? `▪️ ${m.full_name || 'Sem nome'} (${roleCap})\n👤 Login: ${sessionData.email}\n🔑 Senha: ${sessionData.password}`
-          : `▪️ ${m.full_name || 'Sem nome'} (${roleCap}) — acesso existente`
-      })
+        return `▪️ ${m.full_name || 'Sem nome'} (${roleCap}) — acesso existente`
+      }),
+  ]
 
   const whatsappMsg =
 `Olá ${displayName}! 🎉
@@ -1377,61 +1377,45 @@ Qualquer dúvida estou aqui! 😊`
                     </div>
                   )}
                 </div>
-                {(isNew ? successfulTeam.length > 0 : existingMembers.length > 0) && (
+                {(successfulTeam.length > 0 || existingMembers.length > 0) && (
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
                       <Users size={13} className="text-violet-500" />
                       <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-wide">Acesso da Equipe</h4>
                     </div>
                     <div className="space-y-2">
-                      {isNew
-                        ? successfulTeam.map(emp => (
-                            <div key={emp.id || emp.email} className="flex items-center gap-3 bg-violet-50 border border-violet-100 rounded-xl px-3 py-2.5">
-                              <div className="flex-1 min-w-0">
-                                <p className="text-xs font-bold text-gray-800 truncate">{emp.name}</p>
-                                <p className="text-[10px] text-violet-600 font-semibold capitalize">{emp.role}</p>
-                                <p className="text-[10px] text-gray-500 font-mono truncate">{emp.email}</p>
-                                <p className="text-[10px] text-gray-500 font-mono">{emp.password}</p>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => copyTeamMember(emp)}
-                                className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 text-[10px] font-bold text-violet-700 bg-white border border-violet-200 rounded-lg hover:bg-violet-50 transition-colors"
-                              >
-                                <Copy size={11} />Copiar
-                              </button>
+                      {successfulTeam.map(emp => (
+                        <div key={emp.id || emp.email} className="flex items-center gap-3 bg-violet-50 border border-violet-100 rounded-xl px-3 py-2.5">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-bold text-gray-800 truncate">{emp.name}</p>
+                            <p className="text-[10px] text-violet-600 font-semibold capitalize">{emp.role}</p>
+                            <p className="text-[10px] text-gray-500 font-mono truncate">{emp.email}</p>
+                            <p className="text-[10px] text-gray-500 font-mono">{emp.password}</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => copyTeamMember(emp)}
+                            className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 text-[10px] font-bold text-violet-700 bg-white border border-violet-200 rounded-lg hover:bg-violet-50 transition-colors"
+                          >
+                            <Copy size={11} />Copiar
+                          </button>
+                        </div>
+                      ))}
+                      {existingMembers
+                        .filter(m => !successfulTeam.some(t => t.userId === m.id))
+                        .map(m => (
+                          <div key={m.id} className="flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-bold text-gray-800 truncate">{m.full_name || 'Sem nome'}</p>
+                              <p className="text-[10px] text-violet-600 font-semibold capitalize">{m.role}</p>
                             </div>
-                          ))
-                        : existingMembers.map(m => {
-                            const sessionData = successfulTeam.find(t => t.userId === m.id)
-                            return sessionData ? (
-                              <div key={m.id} className="flex items-center gap-3 bg-violet-50 border border-violet-100 rounded-xl px-3 py-2.5">
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-xs font-bold text-gray-800 truncate">{m.full_name || 'Sem nome'}</p>
-                                  <p className="text-[10px] text-violet-600 font-semibold capitalize">{m.role}</p>
-                                  <p className="text-[10px] text-gray-500 font-mono truncate">{sessionData.email}</p>
-                                  <p className="text-[10px] text-gray-500 font-mono">{sessionData.password}</p>
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => copyTeamMember({ ...m, name: m.full_name, email: sessionData.email, password: sessionData.password })}
-                                  className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 text-[10px] font-bold text-violet-700 bg-white border border-violet-200 rounded-lg hover:bg-violet-50 transition-colors"
-                                >
-                                  <Copy size={11} />Copiar
-                                </button>
-                              </div>
-                            ) : (
-                              <div key={m.id} className="flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5">
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-xs font-bold text-gray-800 truncate">{m.full_name || 'Sem nome'}</p>
-                                  <p className="text-[10px] text-violet-600 font-semibold capitalize">{m.role}</p>
-                                </div>
-                              </div>
-                            )
-                          })
+                          </div>
+                        ))
                       }
                     </div>
-                    {!isNew && <p className="text-[10px] text-gray-400">Para redefinir o acesso de um membro da equipe, use a opção de reset de senha na tela de Equipe do módulo.</p>}
+                    {existingMembers.filter(m => !successfulTeam.some(t => t.userId === m.id)).length > 0 && (
+                      <p className="text-[10px] text-gray-400">Para redefinir o acesso de um membro da equipe, use a opção de reset de senha na tela de Equipe do módulo.</p>
+                    )}
                   </div>
                 )}
                 <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4 font-mono text-xs text-gray-700 whitespace-pre-wrap leading-relaxed">
