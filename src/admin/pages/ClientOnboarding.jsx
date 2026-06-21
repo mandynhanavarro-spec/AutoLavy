@@ -159,6 +159,7 @@ export default function ClientOnboarding({ org, isNew = false, plans = [], segme
   /* ── Correção 1: reset de senha (edição) ── */
   const [resetPwdGenerated, setResetPwdGenerated] = useState(null)
   const [resetPwdLoading, setResetPwdLoading]     = useState(false)
+  const [resetPwdError, setResetPwdError]         = useState('')
 
   /* ── Correção 2: guard de race condition em organization_segments ── */
   /* isNew: não há segmentos a carregar do DB, já começa pronto.
@@ -560,7 +561,7 @@ A partir de hoje fica muito mais fácil acompanhar suas vendas, estoque e fecham
 
 🔗 Acesso: ${window.location.origin}
 👤 Login: ${loginForMsg || '______'}
-🔑 Senha: ${passwordForMsg || '______'}${successfulTeam.length > 0 ? `
+${isNew || passwordForMsg ? `🔑 Senha: ${passwordForMsg || '______'}` : '🔑 Use a senha já cadastrada anteriormente.'}${successfulTeam.length > 0 ? `
 
 👥 Acesso da Equipe:
 
@@ -570,30 +571,21 @@ Qualquer dúvida estou aqui! 😊`
 
   async function handleResetPassword() {
     setResetPwdLoading(true)
+    setResetPwdError('')
     const newPwd = genPassword()
     try {
-      // TODO: criar edge function 'reset-user-password' com service role que:
-      //   1. Receba { org_id, new_password }
-      //   2. Busque o auth user: SELECT auth_id FROM profiles
-      //      WHERE org_id = $org_id AND role IN ('admin','gerente','operador') LIMIT 1
-      //      OU via organizations.contact_email → auth.users.email
-      //   3. Chame supabase.auth.admin.updateUserById(authUserId, { password: new_password })
-      //   4. Retorne { success: true } | { error: 'mensagem' }
-      //
-      // Descomentar quando edge function existir:
-      // const { data, error } = await supabase.functions.invoke('reset-user-password', {
-      //   body: { org_id: orgId, new_password: newPwd },
-      // })
-      // if (error || data?.error) throw new Error(data?.error || error?.message || 'Erro ao redefinir.')
-      throw new Error('Edge function "reset-user-password" ainda não foi criada.')
+      const oid = createdOrg?.id || orgId
+      const { data: result, error: fnErr } = await supabase.functions.invoke('update-owner-password', {
+        body: { org_id: oid, new_password: newPwd },
+      })
+      if (fnErr || result?.error) throw new Error(result?.error || fnErr?.message || 'Erro ao redefinir a senha.')
+      setResetPwdGenerated(newPwd)
+      setPasswordForMsg(newPwd)
     } catch (err) {
-      alert(err.message)
+      setResetPwdError(err.message || 'Não foi possível redefinir a senha. Tente novamente.')
+    } finally {
       setResetPwdLoading(false)
-      return
     }
-    setResetPwdGenerated(newPwd)
-    setPasswordForMsg(newPwd)
-    setResetPwdLoading(false)
   }
 
   async function copyTeamMember(emp) {
@@ -1350,6 +1342,7 @@ Qualquer dúvida estou aqui! 😊`
                         </div>
                       ) : (
                         <div className="space-y-1.5">
+                          <p className="text-[10px] text-amber-600 font-medium">O cliente poderá continuar usando a senha antiga até que você gere e envie a nova. Sessões ativas não serão encerradas.</p>
                           <button
                             type="button"
                             onClick={handleResetPassword}
@@ -1358,7 +1351,10 @@ Qualquer dúvida estou aqui! 😊`
                           >
                             {resetPwdLoading ? 'Redefinindo...' : 'Gerar nova senha e atualizar →'}
                           </button>
-                          <p className="text-[10px] text-gray-400">A senha atual do cliente permanece inalterada.</p>
+                          {resetPwdError && (
+                            <p className="text-[10px] font-medium text-red-600 bg-red-50 border border-red-100 rounded-lg px-2.5 py-1.5">{resetPwdError}</p>
+                          )}
+                          <p className="text-[10px] text-gray-400">A senha atual do cliente permanece inalterada até uma nova ser gerada.</p>
                         </div>
                       )}
                     </div>
@@ -1389,6 +1385,25 @@ Qualquer dúvida estou aqui! 😊`
                         </div>
                       ))}
                     </div>
+                  </div>
+                )}
+                {successfulTeam.length === 0 && !isNew && existingMembers.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Users size={13} className="text-violet-500" />
+                      <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-wide">Equipe desta empresa</h4>
+                    </div>
+                    <div className="space-y-2">
+                      {existingMembers.map(m => (
+                        <div key={m.id} className="flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-bold text-gray-800 truncate">{m.full_name || 'Sem nome'}</p>
+                            <p className="text-[10px] text-violet-600 font-semibold capitalize">{m.role}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-gray-400">Para redefinir o acesso de um membro da equipe, use a opção de reset de senha na tela de Equipe do módulo.</p>
                   </div>
                 )}
                 <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4 font-mono text-xs text-gray-700 whitespace-pre-wrap leading-relaxed">
