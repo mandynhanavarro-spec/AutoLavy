@@ -241,11 +241,8 @@ export default function ClientOnboarding({ org, isNew = false, plans = [], segme
   /* Pre-populate conclusion fields */
   useEffect(() => {
     if (step === CONCLUSION) {
-      if (!loginForMsg) setLoginForMsg(storeForm.login_email || '')
-      // !isNew: NÃO popular passwordForMsg — initial_password é string aleatória
-      // nunca aplicada ao Supabase Auth no fluxo de edição. O superadmin usa o
-      // botão "Gerar nova senha e atualizar" abaixo para redefinir de verdade.
-      if (isNew && !passwordForMsg) setPasswordForMsg(storeForm.initial_password || '')
+      setLoginForMsg(storeForm.login_email || '')
+      if (isNew) setPasswordForMsg(storeForm.initial_password || '')
     }
   }, [step])
 
@@ -473,8 +470,6 @@ export default function ClientOnboarding({ org, isNew = false, plans = [], segme
       }
     }
     setTeamResults(results)
-    const first = results.find(r => r.success)
-    if (first) { setLoginForMsg(first.email); setPasswordForMsg(first.password) }
     setCreatingTeam(false)
     await loadTeamMembers()
   }
@@ -516,6 +511,8 @@ export default function ClientOnboarding({ org, isNew = false, plans = [], segme
   const displayName = storeForm.name || org?.name || 'Cliente'
 
   const successfulTeam = teamResults.filter(r => r.success)
+  const hasUncreatedEmployees = newEmployees.length > 0 &&
+    successfulTeam.length < newEmployees.length
 
   const whatsappMsg =
 `Olá ${displayName}! 🎉
@@ -1143,11 +1140,20 @@ Qualquer dúvida estou aqui! 😊`
                 )}
               </div>
 
+              {hasUncreatedEmployees && (
+                <p className="text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5">
+                  Clique em "Criar conta(s)" antes de avançar para confirmar o acesso da equipe.
+                </p>
+              )}
               <div className="flex justify-between">
                 <button onClick={() => setStep(3)} className="flex items-center gap-2 px-5 py-3 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-colors">
                   <ArrowLeft size={15} />Voltar
                 </button>
-                <button onClick={() => setStep(5)} className="flex items-center gap-2 px-6 py-3 bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-bold rounded-xl shadow-md transition-colors">
+                <button
+                  onClick={() => setStep(5)}
+                  disabled={hasUncreatedEmployees}
+                  className="flex items-center gap-2 px-6 py-3 bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-bold rounded-xl shadow-md disabled:opacity-60 transition-colors"
+                >
                   {newEmployees.length === 0 && teamResults.length === 0 && existingMembers.length === 0
                     ? 'Pular e Continuar'
                     : 'Próximo'
