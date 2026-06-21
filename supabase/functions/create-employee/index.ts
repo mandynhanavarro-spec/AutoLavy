@@ -16,7 +16,7 @@ function respond(body: object) {
 }
 
 function normalizeDomain(name: string): string {
-  return name.trim().toLowerCase()
+  return (name || '').trim().toLowerCase()
     .normalize('NFD').replace(/[̀-ͯ]/g, '')
     .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 }
@@ -73,9 +73,13 @@ Deno.serve(async (req) => {
 
     // Se o handle já é um email completo (contém @), usa direto;
     // caso contrário gera email fictício: handle@nome-normalizado.com
+    // Fallback: slug sem sufixo UUID, depois 'empresa'
+    const domainBase = normalizeDomain(org?.name ?? '') ||
+      (org?.slug || '').replace(/-[a-f0-9]{8}$/, '') ||
+      'empresa'
     const authEmail = handle.includes('@')
       ? handle
-      : `${handle}@${normalizeDomain(org?.name ?? 'empresa')}.com`
+      : `${handle}@${domainBase}.com`
 
     // Criar usuário no Supabase Auth
     const { data: created, error: createErr } = await admin.auth.admin.createUser({

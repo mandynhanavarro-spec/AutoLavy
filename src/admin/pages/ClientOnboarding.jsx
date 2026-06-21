@@ -206,11 +206,8 @@ export default function ClientOnboarding({ org, isNew = false, plans = [], segme
   async function loadTeamMembers(overrideId) {
     const oid = overrideId || orgId
     if (!oid) return
-    console.log('[debug] loadTeamMembers oid:', oid)
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('profiles').select('id, full_name, role').eq('org_id', oid).order('full_name')
-    console.log('[debug] profiles data:', data)
-    console.log('[debug] profiles error:', error)
     setExistingMembers(data || [])
   }
 
@@ -504,13 +501,11 @@ export default function ClientOnboarding({ org, isNew = false, plans = [], segme
           role:      emp.role,
           password:  emp.password,
         }
-        console.log('[debug] criando funcionário:', payload)
         const { data, error } = await supabase.functions.invoke('create-employee', {
           body: payload,
         })
-        console.log('[debug] resultado create-employee:', { data, error })
         if (error || data?.error) throw new Error(data?.error || error?.message || 'Erro')
-        results.push({ ...emp, email: data?.email || emp.email, success: true })
+        results.push({ ...emp, email: data?.email || emp.email, userId: data?.userId, success: true })
       } catch (err) {
         results.push({ ...emp, success: false, errorMsg: err.message })
       }
@@ -560,6 +555,17 @@ export default function ClientOnboarding({ org, isNew = false, plans = [], segme
   const hasUncreatedEmployees = newEmployees.length > 0 &&
     successfulTeam.length < newEmployees.length
 
+  const teamMsgEntries = isNew
+    ? successfulTeam.map(e =>
+        `▪️ ${e.name} (${e.role.charAt(0).toUpperCase() + e.role.slice(1)})\n👤 Login: ${e.email}\n🔑 Senha: ${e.password}`)
+    : existingMembers.map(m => {
+        const sessionData = successfulTeam.find(t => t.userId === m.id)
+        const roleCap = (m.role || '').charAt(0).toUpperCase() + (m.role || '').slice(1)
+        return sessionData
+          ? `▪️ ${m.full_name || 'Sem nome'} (${roleCap})\n👤 Login: ${sessionData.email}\n🔑 Senha: ${sessionData.password}`
+          : `▪️ ${m.full_name || 'Sem nome'} (${roleCap}) — acesso existente`
+      })
+
   const whatsappMsg =
 `Olá ${displayName}! 🎉
 Seu negócio acaba de dar um grande passo!
@@ -567,11 +573,11 @@ A partir de hoje fica muito mais fácil acompanhar suas vendas, estoque e fecham
 
 🔗 Acesso: ${window.location.origin}
 👤 Login: ${loginForMsg || '______'}
-${isNew || passwordForMsg ? `🔑 Senha: ${passwordForMsg || '______'}` : '🔑 Use a senha já cadastrada anteriormente.'}${successfulTeam.length > 0 ? `
+${isNew || passwordForMsg ? `🔑 Senha: ${passwordForMsg || '______'}` : '🔑 Use a senha já cadastrada anteriormente.'}${teamMsgEntries.length > 0 ? `
 
 👥 Acesso da Equipe:
 
-${successfulTeam.map(e => `▪️ ${e.name} (${e.role.charAt(0).toUpperCase() + e.role.slice(1)})\n👤 Login: ${e.email}\n🔑 Senha: ${e.password}`).join('\n\n')}` : ''}
+${teamMsgEntries.join('\n\n')}` : ''}
 
 Qualquer dúvida estou aqui! 😊`
 
@@ -1371,50 +1377,61 @@ Qualquer dúvida estou aqui! 😊`
                     </div>
                   )}
                 </div>
-                {successfulTeam.length > 0 && (
+                {(isNew ? successfulTeam.length > 0 : existingMembers.length > 0) && (
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
                       <Users size={13} className="text-violet-500" />
                       <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-wide">Acesso da Equipe</h4>
                     </div>
                     <div className="space-y-2">
-                      {successfulTeam.map(emp => (
-                        <div key={emp.id || emp.email} className="flex items-center gap-3 bg-violet-50 border border-violet-100 rounded-xl px-3 py-2.5">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-bold text-gray-800 truncate">{emp.name}</p>
-                            <p className="text-[10px] text-violet-600 font-semibold capitalize">{emp.role}</p>
-                            <p className="text-[10px] text-gray-500 font-mono truncate">{emp.email}</p>
-                            <p className="text-[10px] text-gray-500 font-mono">{emp.password}</p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => copyTeamMember(emp)}
-                            className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 text-[10px] font-bold text-violet-700 bg-white border border-violet-200 rounded-lg hover:bg-violet-50 transition-colors"
-                          >
-                            <Copy size={11} />Copiar
-                          </button>
-                        </div>
-                      ))}
+                      {isNew
+                        ? successfulTeam.map(emp => (
+                            <div key={emp.id || emp.email} className="flex items-center gap-3 bg-violet-50 border border-violet-100 rounded-xl px-3 py-2.5">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-bold text-gray-800 truncate">{emp.name}</p>
+                                <p className="text-[10px] text-violet-600 font-semibold capitalize">{emp.role}</p>
+                                <p className="text-[10px] text-gray-500 font-mono truncate">{emp.email}</p>
+                                <p className="text-[10px] text-gray-500 font-mono">{emp.password}</p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => copyTeamMember(emp)}
+                                className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 text-[10px] font-bold text-violet-700 bg-white border border-violet-200 rounded-lg hover:bg-violet-50 transition-colors"
+                              >
+                                <Copy size={11} />Copiar
+                              </button>
+                            </div>
+                          ))
+                        : existingMembers.map(m => {
+                            const sessionData = successfulTeam.find(t => t.userId === m.id)
+                            return sessionData ? (
+                              <div key={m.id} className="flex items-center gap-3 bg-violet-50 border border-violet-100 rounded-xl px-3 py-2.5">
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs font-bold text-gray-800 truncate">{m.full_name || 'Sem nome'}</p>
+                                  <p className="text-[10px] text-violet-600 font-semibold capitalize">{m.role}</p>
+                                  <p className="text-[10px] text-gray-500 font-mono truncate">{sessionData.email}</p>
+                                  <p className="text-[10px] text-gray-500 font-mono">{sessionData.password}</p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => copyTeamMember({ ...m, name: m.full_name, email: sessionData.email, password: sessionData.password })}
+                                  className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 text-[10px] font-bold text-violet-700 bg-white border border-violet-200 rounded-lg hover:bg-violet-50 transition-colors"
+                                >
+                                  <Copy size={11} />Copiar
+                                </button>
+                              </div>
+                            ) : (
+                              <div key={m.id} className="flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5">
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs font-bold text-gray-800 truncate">{m.full_name || 'Sem nome'}</p>
+                                  <p className="text-[10px] text-violet-600 font-semibold capitalize">{m.role}</p>
+                                </div>
+                              </div>
+                            )
+                          })
+                      }
                     </div>
-                  </div>
-                )}
-                {successfulTeam.length === 0 && !isNew && existingMembers.length > 0 && (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Users size={13} className="text-violet-500" />
-                      <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-wide">Equipe desta empresa</h4>
-                    </div>
-                    <div className="space-y-2">
-                      {existingMembers.map(m => (
-                        <div key={m.id} className="flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-bold text-gray-800 truncate">{m.full_name || 'Sem nome'}</p>
-                            <p className="text-[10px] text-violet-600 font-semibold capitalize">{m.role}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    <p className="text-[10px] text-gray-400">Para redefinir o acesso de um membro da equipe, use a opção de reset de senha na tela de Equipe do módulo.</p>
+                    {!isNew && <p className="text-[10px] text-gray-400">Para redefinir o acesso de um membro da equipe, use a opção de reset de senha na tela de Equipe do módulo.</p>}
                   </div>
                 )}
                 <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4 font-mono text-xs text-gray-700 whitespace-pre-wrap leading-relaxed">
