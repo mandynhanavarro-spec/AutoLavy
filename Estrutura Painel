@@ -1,0 +1,420 @@
+ATENÇÃO: O projeto está em desenvolvimento ativo e o módulo Loja já está sendo construído.
+
+NÃO recrie o projeto do zero.
+
+NÃO apagar funcionalidades existentes.
+
+NÃO quebrar telas já implementadas.
+
+O objetivo é realizar uma REFATORAÇÃO EVOLUTIVA da arquitetura para preparar o sistema para crescimento futuro.
+
+====================================================
+VISÃO GERAL
+====================================================
+
+A plataforma principal se chama:
+
+AutoLavy
+
+O AutoLavy será um ecossistema SaaS multi-tenant e multi-produto.
+
+Inicialmente existirão 3 produtos ativos:
+
+- Meu Caixa
+- Meu Serviço
+- Meu Studio
+
+Futuramente serão adicionados:
+
+- Pet Fácil
+- Meu Consultório
+- Meu Curso
+- Delivery Fácil
+- Facilita Imóvel
+- Agenda Fest
+- Meu Personal
+- Meu Auto
+- Meu Escritório
+
+O sistema deve ser preparado agora para suportar todos esses produtos sem necessidade de grandes refatorações futuras.
+
+====================================================
+MAPEAMENTO DE PRODUTOS
+====================================================
+
+INTERNO                CLIENTE VISUALIZA
+------------------------------------------------
+
+loja                   Meu Caixa
+servico                Meu Serviço
+beleza                 Meu Studio
+pet                    Pet Fácil
+saude                  Meu Consultório
+edu                    Meu Curso
+alimento               Delivery Fácil
+imovel                 Facilita Imóvel
+evento                 Agenda Fest
+fit                    Meu Personal
+auto                   Meu Auto
+juridico               Meu Escritório
+
+IMPORTANTE:
+
+O cliente nunca deve visualizar os nomes internos.
+
+O cliente deve visualizar apenas o nome comercial do produto.
+
+====================================================
+OBJETIVO DA REFATORAÇÃO
+====================================================
+
+Transformar o sistema atual em uma arquitetura modular.
+
+Criar uma estrutura que permita adicionar novos produtos futuramente sem alterar o núcleo da aplicação.
+
+Toda regra deve ser reutilizável.
+
+Evitar código específico para um único segmento.
+
+====================================================
+ARQUITETURA DESEJADA
+====================================================
+
+Criar estrutura semelhante a:
+
+src/
+
+core/
+├── auth
+├── billing
+├── tenants
+├── permissions
+├── notifications
+├── dashboard
+├── integrations
+├── reports
+
+modules/
+├── loja
+├── servico
+├── beleza
+├── pet
+├── saude
+├── edu
+├── alimento
+├── imovel
+├── evento
+├── fit
+├── auto
+├── juridico
+
+shared/
+├── components
+├── hooks
+├── services
+├── types
+├── utils
+├── layouts
+
+admin/
+├── dashboard
+├── empresas
+├── planos
+├── assinaturas
+├── modulos
+├── configuracoes
+
+====================================================
+MULTI TENANT
+====================================================
+
+Implementar arquitetura multi-tenant.
+
+Cada empresa deve possuir:
+
+id
+nome
+tenant_id
+produto
+plano
+status
+configuracoes
+
+Todos os dados devem ser separados por tenant.
+
+Exemplos:
+
+Empresa A
+visualiza apenas seus dados
+
+Empresa B
+visualiza apenas seus dados
+
+Empresa C
+visualiza apenas seus dados
+
+Nenhum tenant pode acessar dados de outro tenant.
+
+====================================================
+TABELA DE PRODUTOS
+====================================================
+
+Criar estrutura de produtos.
+
+Exemplo:
+
+products
+
+id
+slug
+nome_interno
+nome_comercial
+status
+
+Exemplos:
+
+loja
+Meu Caixa
+
+servico
+Meu Serviço
+
+beleza
+Meu Studio
+
+pet
+Pet Fácil
+
+saude
+Meu Consultório
+
+edu
+Meu Curso
+
+alimento
+Delivery Fácil
+
+imovel
+Facilita Imóvel
+
+evento
+Agenda Fest
+
+fit
+Meu Personal
+
+auto
+Meu Auto
+
+juridico
+Meu Escritório
+
+====================================================
+PAINEL MASTER AUTO LAVY
+====================================================
+
+Criar painel exclusivo do proprietário da plataforma.
+
+Funções:
+
+Visualizar empresas
+
+Visualizar assinaturas
+
+Visualizar faturamento
+
+Visualizar métricas
+
+Ativar empresa
+
+Suspender empresa
+
+Bloquear empresa
+
+Trocar plano
+
+Liberar módulos
+
+Gerenciar produtos
+
+Visualizar logs
+
+Visualizar integrações
+
+Visualizar uso da plataforma
+
+====================================================
+PAINEL DO CLIENTE
+====================================================
+
+O cliente deve acessar apenas seu produto.
+
+Exemplo:
+
+Meu Caixa
+
+ou
+
+Meu Studio
+
+ou
+
+Meu Serviço
+
+Nunca exibir:
+
+AutoLavy interno
+Modules
+LojaOS
+ServiçoOS
+
+====================================================
+SISTEMA DE MÓDULOS
+====================================================
+
+Implementar feature flags.
+
+Cada produto poderá habilitar ou desabilitar funcionalidades.
+
+Exemplo:
+
+Meu Caixa
+
+- estoque
+- vendas
+- financeiro
+- relatórios
+
+Meu Studio
+
+- agenda
+- profissionais
+- clientes
+- financeiro
+
+Meu Serviço
+
+- ordens de serviço
+- clientes
+- financeiro
+
+No futuro:
+
+Pet Fácil
+Meu Consultório
+Meu Curso
+etc.
+
+Sem alterar o Core.
+
+====================================================
+RBAC
+====================================================
+
+Criar sistema de permissões.
+
+Perfis:
+
+Super Admin
+Admin Empresa
+Gerente
+Financeiro
+Atendente
+Operador
+
+Permissões granulares.
+
+====================================================
+BANCO DE DADOS
+====================================================
+
+Analisar banco atual e propor refatoração sem quebra.
+
+Preparar entidades genéricas:
+
+Empresas
+
+Usuários
+
+Produtos
+
+Planos
+
+Assinaturas
+
+Permissões
+
+Módulos
+
+Clientes
+
+Produtos Comerciais
+
+Serviços
+
+Vendas
+
+Financeiro
+
+Agenda
+
+Logs
+
+Configurações
+
+Integrações
+
+====================================================
+REGRAS IMPORTANTES
+====================================================
+
+Não utilizar nomenclaturas específicas que dificultem expansão.
+
+Evitar exemplos como:
+
+LojaCliente
+LojaProduto
+LojaVenda
+
+Preferir:
+
+Cliente
+Produto
+Venda
+
+Sempre vinculados ao tenant.
+
+====================================================
+ANÁLISE OBRIGATÓRIA
+====================================================
+
+Antes de alterar qualquer código:
+
+1. Analisar a arquitetura atual.
+2. Identificar riscos.
+3. Identificar dependências.
+4. Identificar pontos de acoplamento.
+5. Identificar tabelas que precisarão ser adaptadas.
+6. Identificar componentes reutilizáveis.
+7. Identificar código específico de Loja que deve ser transformado em código genérico.
+
+====================================================
+ENTREGA ESPERADA
+====================================================
+
+Gerar um relatório contendo:
+
+1. Diagnóstico da arquitetura atual.
+2. Problemas encontrados.
+3. Refatorações necessárias.
+4. Nova estrutura de pastas.
+5. Novo modelo de banco de dados.
+6. Estratégia multi-tenant.
+7. Estratégia de módulos.
+8. Estratégia de permissões.
+9. Plano de migração sem quebrar funcionalidades existentes.
+10. Checklist técnico para suportar todos os produtos futuros do AutoLavy.
+
+IMPORTANTE:
+
+A prioridade é manter o módulo Meu Caixa funcionando enquanto a arquitetura é preparada para a expansão do ecossistema AutoLavy.

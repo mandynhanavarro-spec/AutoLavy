@@ -1,0 +1,474 @@
+# PRD COMPLETO - PAINEL ADMINISTRATIVO SAAS (TRAE.AI)
+
+## Objetivo
+
+Criar um Painel Administrativo SaaS simples, focado na gestão de clientes, assinaturas, acessos e recursos liberados para cada empresa.
+
+O sistema não deve funcionar como ERP.
+
+O foco é administrar os clientes que utilizam o SaaS.
+
+A interface deve ser limpa, moderna e objetiva, exibindo apenas informações essenciais.
+
+---
+
+# DASHBOARD
+
+Criar uma tela inicial contendo os seguintes indicadores:
+
+### Cards
+
+* Total de Clientes
+* Clientes Ativos
+* Clientes Suspensos
+* Receita Mensal
+* Planos Ativos
+
+### Últimos Clientes Cadastrados
+
+Exibir:
+
+* Nome da Empresa
+* Responsável
+* Plano
+* Data de Cadastro
+* Status
+
+### Ações Rápidas
+
+* Novo Cliente
+* Novo Plano
+* Registrar Pagamento
+
+---
+
+# MÓDULO CLIENTES
+
+## Listagem
+
+Tabela com:
+
+* Nome da Empresa
+* Responsável
+* E-mail
+* WhatsApp
+* Plano
+* Status
+* Data de Cadastro
+
+Filtros:
+
+* Ativos
+* Suspensos
+* Cancelados
+
+Busca por:
+
+* Empresa
+* E-mail
+* Telefone
+
+---
+
+## Cadastro de Cliente
+
+### Dados da Empresa
+
+Campos:
+
+* Nome da Empresa
+* Nome do Responsável
+* CPF/CNPJ
+* E-mail
+* WhatsApp
+* Endereço
+* Observações
+
+---
+
+### Dados de Acesso
+
+Campos:
+
+* Usuário
+* E-mail de Login
+* Senha Inicial
+
+Ações:
+
+* Alterar Senha
+* Resetar Senha
+* Enviar Link de Recuperação
+* Bloquear Acesso
+* Liberar Acesso
+
+---
+
+### Status do Cliente
+
+Opções:
+
+* Ativo
+* Suspenso
+* Cancelado
+
+Ao suspender:
+
+* Impedir login no painel do cliente
+
+---
+
+# MÓDULO ASSINATURA
+
+Dentro do cadastro do cliente.
+
+Exibir:
+
+* Plano Atual
+* Valor Mensal
+* Data de Vencimento
+* Status do Pagamento
+
+Status:
+
+* Pago
+* Pendente
+* Atrasado
+
+---
+
+## Ações
+
+* Alterar Plano
+* Renovar Assinatura
+* Suspender Assinatura
+* Reativar Assinatura
+
+---
+
+# MÓDULO PLANOS
+
+Sistema baseado em recursos.
+
+Não criar lógica fixa de planos.
+
+Cada plano deve possuir recursos configuráveis.
+
+---
+
+## Cadastro de Plano
+
+Campos:
+
+* Nome do Plano
+* Valor
+* Descrição
+* Status
+
+---
+
+## Recursos Liberados
+
+Exibir em formato de switches ou checkboxes.
+
+### Loja
+
+* Ativar Loja
+
+### Serviços
+
+* Ativar Serviços
+
+### Clientes
+
+* Ativar Clientes
+
+### Produtos
+
+* Ativar Produtos
+
+### Agenda
+
+* Ativar Agenda
+
+### Relatórios
+
+* Ativar Relatórios
+
+### API
+
+* Ativar API
+
+### Integrações
+
+* Ativar Integrações
+
+---
+
+## Limites
+
+Permitir definir:
+
+* Quantidade máxima de usuários
+* Quantidade máxima de clientes
+* Quantidade máxima de produtos
+* Quantidade máxima de serviços
+
+Valor 0 = ilimitado.
+
+---
+
+# MÓDULO PAGAMENTOS
+
+Sistema inicialmente manual.
+
+Sem integração obrigatória.
+
+---
+
+## Histórico de Pagamentos
+
+Tabela:
+
+* Data
+* Cliente
+* Valor
+* Método
+* Status
+
+Métodos:
+
+* PIX
+* Cartão
+* Boleto
+* Dinheiro
+* Transferência
+
+Status:
+
+* Pago
+* Pendente
+* Cancelado
+
+---
+
+## Registrar Pagamento
+
+Campos:
+
+* Cliente
+* Valor
+* Método
+* Data
+* Observação
+
+Botão:
+
+* Marcar como Pago
+
+---
+
+## Preparação para Futuras Integrações
+
+Criar área de configurações para armazenar:
+
+* Stripe API Key
+* Mercado Pago Token
+* Asaas Token
+* Pagar.me Token
+
+Sem implementar integrações neste momento.
+
+Apenas preparar estrutura.
+
+---
+
+# MÓDULO CONFIGURAÇÕES
+
+## Administradores
+
+Campos:
+
+* Nome
+* E-mail
+* Senha
+* Perfil
+
+Perfis:
+
+* Super Admin
+* Administrador
+
+---
+
+## Segurança
+
+Configurações:
+
+* Tempo de sessão
+* Política de senha
+* Ativar autenticação em dois fatores (estrutura preparada)
+
+---
+
+## Logs do Sistema
+
+Registrar:
+
+* Login
+* Logout
+* Reset de senha
+* Alteração de plano
+* Suspensão de cliente
+* Reativação de cliente
+* Cadastro de pagamento
+
+Exibir:
+
+* Usuário
+* Ação
+* Data/Hora
+* IP
+
+---
+
+# ESTRUTURA DE BANCO DE DADOS
+
+## empresas
+
+id
+nome_empresa
+responsavel
+cpf_cnpj
+email
+telefone
+endereco
+status
+plano_id
+created_at
+updated_at
+
+---
+
+## usuarios
+
+id
+empresa_id
+nome
+email
+senha_hash
+ultimo_login
+status
+created_at
+
+---
+
+## planos
+
+id
+nome
+valor
+descricao
+status
+created_at
+
+---
+
+## plano_recursos
+
+id
+plano_id
+recurso
+ativo
+
+---
+
+## plano_limites
+
+id
+plano_id
+usuarios
+clientes
+produtos
+servicos
+
+---
+
+## pagamentos
+
+id
+empresa_id
+valor
+metodo
+status
+vencimento
+pago_em
+observacao
+
+---
+
+## logs
+
+id
+usuario_id
+acao
+descricao
+ip
+created_at
+
+---
+
+# REQUISITOS DE UI
+
+* Interface moderna estilo SaaS
+* Design limpo
+* Poucos elementos por tela
+* Responsivo para desktop e mobile
+* Sidebar lateral fixa
+* Tema claro e escuro
+* Componentes reutilizáveis
+* Tabelas com paginação
+* Busca instantânea
+* Modais para ações rápidas
+
+---
+
+# MENU FINAL
+
+Dashboard
+
+Clientes
+
+* Listagem
+* Cadastro
+
+Planos
+
+* Planos
+* Recursos
+
+Pagamentos
+
+* Histórico
+* Registrar Pagamento
+
+Configurações
+
+* Administradores
+* Segurança
+* Logs
+
+---
+
+# IMPORTANTE
+
+Não adicionar funcionalidades de ERP, financeiro avançado, estoque, fluxo de caixa ou relatórios complexos.
+
+O objetivo é criar um painel administrativo SaaS simples, escalável e focado exclusivamente em:
+
+* Gestão de clientes
+* Gestão de acessos
+* Gestão de planos
+* Gestão de pagamentos
+* Controle de recursos liberados
+* Administração do SaaS

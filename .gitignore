@@ -1,0 +1,30 @@
+# Dependências
+node_modules/
+.pnp
+.pnp.js
+
+# Build
+dist/
+build/
+*.local
+
+# Variáveis de ambiente — NUNCA commitar com credenciais reais
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+dev.log
+
+# Editor / IDE / OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Claude Code — configurações locais (podem conter paths pessoais)
+.claude/settings.local.json
+
+# Supabase
+.supabase/

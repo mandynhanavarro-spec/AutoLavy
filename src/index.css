@@ -1,0 +1,32 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+}
+
+body {
+  margin: 0;
+  display: flex;
+  place-content: center;
+  min-width: 320px;
+  min-height: 100vh;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#root {
+  width: 100%;
+}
+
+/* Custom classes for mobile touch */
+.btn-touch {
+  @apply active:scale-95 transition-transform duration-75 select-none;
+  min-height: 48px;
+}
+
+input, select, button {
+  font-size: 16px !important; /* Prevents iOS zoom on focus */
+}
