@@ -117,6 +117,7 @@ export default function ClientOnboarding({ org, isNew = false, plans = [], segme
     sessionRestored?.show_contact_email ?? false
   )
   const [editingPassword, setEditingPassword]   = useState(false)
+  const [ownerCreated, setOwnerCreated]         = useState(false)
 
   /* ── Step 3: Caixas & Categorias ── */
   const [registers, setRegisters]   = useState([])
@@ -353,6 +354,19 @@ export default function ClientOnboarding({ org, isNew = false, plans = [], segme
           loadTeamMembers(newOrg.id),
         ])
 
+        const { data: ownerResult, error: ownerInvokeErr } = await supabase.functions.invoke('create-owner', {
+          body: {
+            org_id:    newOrg.id,
+            email:     storeForm.login_email.trim().toLowerCase(),
+            full_name: storeForm.responsible_name.trim() || storeForm.name.trim(),
+            password:  storeForm.initial_password,
+          },
+        })
+        if (ownerInvokeErr || ownerResult?.error) {
+          throw new Error(ownerResult?.error || ownerInvokeErr?.message || 'Erro ao criar o login do dono.')
+        }
+        setOwnerCreated(true)
+
       } else {
         const oid = createdOrg?.id || orgId
         const { error } = await supabase.from('organizations').update({
@@ -377,6 +391,22 @@ export default function ClientOnboarding({ org, isNew = false, plans = [], segme
             loadCategories(oid),
             loadTeamMembers(oid),
           ])
+        }
+
+        // Retry: criar login do dono se a tentativa anterior falhou (ex: email errado corrigido)
+        if (isNew && !ownerCreated) {
+          const { data: ownerResult, error: ownerInvokeErr } = await supabase.functions.invoke('create-owner', {
+            body: {
+              org_id:    oid,
+              email:     storeForm.login_email.trim().toLowerCase(),
+              full_name: storeForm.responsible_name.trim() || storeForm.name.trim(),
+              password:  storeForm.initial_password,
+            },
+          })
+          if (ownerInvokeErr || ownerResult?.error) {
+            throw new Error(ownerResult?.error || ownerInvokeErr?.message || 'Erro ao criar o login do dono.')
+          }
+          setOwnerCreated(true)
         }
       }
 
