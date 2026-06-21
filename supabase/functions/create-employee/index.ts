@@ -15,6 +15,12 @@ function respond(body: object) {
   })
 }
 
+function normalizeDomain(name: string): string {
+  return name.trim().toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
 
@@ -58,18 +64,18 @@ Deno.serve(async (req) => {
       return respond({ error: 'Acesso negado a esta organização.' })
     }
 
-    // Buscar slug da org para montar o email interno
+    // Buscar nome da org para montar o domínio fictício limpo
     const { data: org } = await admin
       .from('organizations')
-      .select('slug')
+      .select('slug, name')
       .eq('id', orgId)
       .single()
 
     // Se o handle já é um email completo (contém @), usa direto;
-    // caso contrário monta email interno com slug da org
+    // caso contrário gera email fictício: handle@nome-normalizado.com
     const authEmail = handle.includes('@')
       ? handle
-      : `${handle}@${org?.slug ?? orgId}.local`
+      : `${handle}@${normalizeDomain(org?.name ?? 'empresa')}.com`
 
     // Criar usuário no Supabase Auth
     const { data: created, error: createErr } = await admin.auth.admin.createUser({

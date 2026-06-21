@@ -15,6 +15,12 @@ function genPassword() {
   return p
 }
 
+function normalizeDomain(name) {
+  return (name || '').trim().toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+}
+
 function formatPhone(value) {
   const d = (value || '').replace(/\D/g, '').slice(0, 11)
   if (d.length === 0) return ''
@@ -504,7 +510,7 @@ export default function ClientOnboarding({ org, isNew = false, plans = [], segme
         })
         console.log('[debug] resultado create-employee:', { data, error })
         if (error || data?.error) throw new Error(data?.error || error?.message || 'Erro')
-        results.push({ ...emp, success: true })
+        results.push({ ...emp, email: data?.email || emp.email, success: true })
       } catch (err) {
         results.push({ ...emp, success: false, errorMsg: err.message })
       }
@@ -1130,7 +1136,12 @@ Qualquer dúvida estou aqui! 😊`
                     {newEmployees.map(emp => (
                       <div key={emp.id} className="grid grid-cols-[1fr_1fr_100px_100px_28px] gap-2 items-center min-w-[560px]">
                         <input value={emp.name} onChange={e => updateEmployee(emp.id, 'name', e.target.value)} placeholder="Nome completo" className="text-xs bg-white border border-gray-200 rounded-lg px-2.5 py-2 outline-none focus:ring-2 focus:ring-violet-300" />
-                        <input value={emp.email} onChange={e => updateEmployee(emp.id, 'email', e.target.value)} placeholder="email@exemplo.com" type="email" className="text-xs bg-white border border-gray-200 rounded-lg px-2.5 py-2 outline-none focus:ring-2 focus:ring-violet-300" />
+                        <div className="flex flex-col gap-0.5">
+                          <input value={emp.email} onChange={e => updateEmployee(emp.id, 'email', e.target.value)} placeholder="nome ou email@completo.com" type="text" className="text-xs bg-white border border-gray-200 rounded-lg px-2.5 py-2 outline-none focus:ring-2 focus:ring-violet-300" />
+                          {emp.email && !emp.email.includes('@') && (
+                            <span className="text-[10px] text-violet-500 font-mono px-1">→ {emp.email}@{normalizeDomain(storeForm.name) || 'empresa'}.com</span>
+                          )}
+                        </div>
                         <select value={emp.role} onChange={e => updateEmployee(emp.id, 'role', e.target.value)} className="text-xs bg-white border border-gray-200 rounded-lg px-2 py-2 outline-none focus:ring-2 focus:ring-violet-300">
                           <option value="operador">Operador</option>
                           <option value="gerente">Gerente</option>
