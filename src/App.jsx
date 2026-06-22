@@ -14,6 +14,7 @@ const LojaHistorico     = lazy(() => import('./modules/loja/pages/Historico'))
 const LojaFechamento    = lazy(() => import('./modules/loja/pages/Fechamento'))
 const LojaEquipe        = lazy(() => import('./modules/loja/pages/Equipe'))
 const LojaConfiguracoes = lazy(() => import('./modules/loja/pages/Configuracoes'))
+const LojaOnboarding    = lazy(() => import('./modules/loja/pages/Onboarding'))
 
 // ── Beleza vertical (lazy) ────────────────────────────────────
 const BelezaLayout         = lazy(() => import('./modules/beleza/components/Layout'))
@@ -46,6 +47,7 @@ const VERTICAL_ROUTES = {
       { path: '/fechamento',    Component: LojaFechamento    },
       { path: '/equipe',        Component: LojaEquipe        },
       { path: '/configuracoes', Component: LojaConfiguracoes },
+      { path: '/onboarding',    Component: LojaOnboarding    },
     ],
   },
   // servico: { Layout: ServicoLayout, pages: [...] },  // fase 2

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Navigate } from 'react-router-dom'
 import { ShoppingCart, TrendingUp, CreditCard, Package, AlertTriangle } from 'lucide-react'
 import { supabase } from '../../../../shared/lib/supabase'
 import { useTenantContext } from '../../../../core/contexts/TenantContext'
@@ -23,7 +23,7 @@ function todayISO() {
 }
 
 export default function Dashboard() {
-  const { tenant } = useTenantContext()
+  const { tenant, profile } = useTenantContext()
   const navigate = useNavigate()
   const [tab, setTab]               = useState('hoje')
   const [loading, setLoading]       = useState(true)
@@ -139,6 +139,10 @@ export default function Dashboard() {
   const ticketToday = todaySales.length > 0 ? todayTotal / todaySales.length : 0
   const ticketYst   = ystSales.length   > 0 ? ystTotal   / ystSales.length   : 0
   const maxQty      = topProducts[0]?.qty || 1
+
+  if (tenant?.onboarding_completed === false && profile?.role === 'admin') {
+    return <Navigate to="/onboarding" replace />
+  }
 
   const todayLabel = new Date().toLocaleDateString('pt-BR', {
     weekday: 'long', day: 'numeric', month: 'long',
