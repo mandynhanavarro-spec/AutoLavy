@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import {
-  BadgeDollarSign, Building2, CheckCircle2, Copy, CreditCard,
+  BadgeDollarSign, Building2, CheckCircle2, Clock, Copy, CreditCard,
   ExternalLink, FileText, KeyRound, LayoutDashboard, Lock,
   LogOut, Monitor, Plus, Search, Settings2, Shield, Trash2,
   WalletCards, X, Users, Pencil,
@@ -1862,12 +1862,28 @@ export default function SuperAdminDashboard() {
                 {clientModalMode === 'create' && (() => {
                   const segKey = clientForm.segments[0] || (clientForm.product_id === 'loja' ? 'geral' : null)
                   const pool = segKey ? (PRESET_CATEGORIES[segKey] || PRESET_CATEGORIES.fallback) : PRESET_CATEGORIES.fallback
-                  const suggestions = catInput.trim()
-                    ? pool.filter(s => s.toLowerCase().includes(catInput.toLowerCase()) && !(clientForm.categories || []).includes(s))
+                  const alreadyAdded = clientForm.categories || []
+
+                  const HISTORY_KEY = 'autolavy_category_history'
+                  function saveToHistory(name) {
+                    const current = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]')
+                    if (current.includes(name)) return
+                    localStorage.setItem(HISTORY_KEY, JSON.stringify([name, ...current].slice(0, 50)))
+                  }
+
+                  const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]')
+                  const fromHistory = catInput.trim()
+                    ? history.filter(h => h.toLowerCase().includes(catInput.toLowerCase()) && !alreadyAdded.includes(h))
                     : []
+                  const fromPreset = catInput.trim()
+                    ? pool.filter(p => p.toLowerCase().includes(catInput.toLowerCase()) && !alreadyAdded.includes(p) && !fromHistory.includes(p))
+                    : []
+                  const suggestions = [...fromHistory, ...fromPreset].slice(0, 8)
+
                   function addCategory(name) {
                     const trimmed = name.trim()
-                    if (!trimmed || (clientForm.categories || []).includes(trimmed)) return
+                    if (!trimmed || alreadyAdded.includes(trimmed)) return
+                    saveToHistory(trimmed)
                     setClientForm(f => ({ ...f, categories: [...(f.categories || []), trimmed] }))
                     setCatInput('')
                   }
@@ -1881,9 +1897,9 @@ export default function SuperAdminDashboard() {
                       </label>
 
                       {/* Tags das categorias adicionadas */}
-                      {(clientForm.categories || []).length > 0 && (
+                      {alreadyAdded.length > 0 && (
                         <div className="flex flex-wrap gap-1.5">
-                          {(clientForm.categories || []).map(cat => (
+                          {alreadyAdded.map(cat => (
                             <span key={cat} className="inline-flex items-center gap-1 bg-violet-50 border border-violet-200 text-violet-700 text-xs font-bold px-2.5 py-1 rounded-lg">
                               {cat}
                               <button type="button" onClick={() => removeCategory(cat)} className="text-violet-400 hover:text-violet-700 transition-colors ml-0.5">
@@ -1917,16 +1933,20 @@ export default function SuperAdminDashboard() {
 
                         {suggestions.length > 0 && (
                           <div className="absolute z-10 left-0 right-12 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
-                            {suggestions.map(s => (
-                              <button
-                                key={s}
-                                type="button"
-                                onMouseDown={e => { e.preventDefault(); addCategory(s) }}
-                                className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-violet-50 hover:text-violet-700 font-medium transition-colors"
-                              >
-                                {s}
-                              </button>
-                            ))}
+                            {suggestions.map(s => {
+                              const isHistory = fromHistory.includes(s)
+                              return (
+                                <button
+                                  key={s}
+                                  type="button"
+                                  onMouseDown={e => { e.preventDefault(); addCategory(s) }}
+                                  className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-violet-50 hover:text-violet-700 font-medium transition-colors flex items-center gap-2"
+                                >
+                                  {isHistory && <Clock size={12} className="text-gray-400 shrink-0" />}
+                                  {s}
+                                </button>
+                              )
+                            })}
                           </div>
                         )}
                       </div>
