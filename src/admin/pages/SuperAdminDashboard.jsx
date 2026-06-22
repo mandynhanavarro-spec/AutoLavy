@@ -96,6 +96,13 @@ const SEGMENT_BADGES = {
   eletronicos: { label: 'Eletrônicos', cls: 'bg-blue-100 text-blue-700'     },
 }
 
+const PRESET_CATEGORIES = {
+  geral:       ['Alimentos', 'Bebidas', 'Higiene', 'Limpeza', 'Outros'],
+  moda:        ['Feminino', 'Masculino', 'Infantil', 'Calçados', 'Acessórios'],
+  eletronicos: ['Celulares', 'Informática', 'TV e Áudio', 'Acessórios', 'Peças'],
+  fallback:    ['Produtos', 'Serviços', 'Promoções', 'Importados', 'Outros'],
+}
+
 const VERTICAL_BADGES = {
   loja:    { label: 'Caixa',   cls: 'bg-violet-100 text-violet-700' },
   servico: { label: 'Serviço', cls: 'bg-amber-100  text-amber-700'  },
@@ -106,7 +113,7 @@ const initialClientForm = {
   store_name: '', responsible_name: '', company_document: '',
   contact_email: '', whatsapp: '', address: '', notes: '',
   login_email: '', initial_password: '', product_id: 'loja', plan_id: '',
-  segments: [],
+  segments: [], categories: [],
 }
 
 const initialPlanForm = {
@@ -248,6 +255,9 @@ export default function SuperAdminDashboard() {
   const [editingTemplateId, setEditingTemplateId] = useState(null)
   const [templateSaving, setTemplateSaving]       = useState(false)
   const [templateError, setTemplateError]         = useState('')
+
+  /* category input for quick create form */
+  const [catInput, setCatInput] = useState('')
 
   /* onboarding overlay */
   const [onboardingOrg, setOnboardingOrg]           = useState(null)
@@ -439,7 +449,8 @@ export default function SuperAdminDashboard() {
   [segments])
 
   function handleVerticalChange(newProductId) {
-    setClientForm(f => ({ ...f, product_id: newProductId, segments: [] }))
+    setClientForm(f => ({ ...f, product_id: newProductId, segments: [], categories: [] }))
+    setCatInput('')
   }
 
   /* ── helpers ─────────────────────────────────────────────── */
@@ -477,7 +488,7 @@ export default function SuperAdminDashboard() {
     setGeneratedLink(''); setClientModalMode('create')
     setEditingOrganizationId(null); setEditingInviteId(null)
     setClientForm({ ...initialClientForm, plan_id: plans[0]?.id || '' })
-    setOrgRegisters([]); setNewRegName(''); setNewRegDesc('')
+    setOrgRegisters([]); setNewRegName(''); setNewRegDesc(''); setCatInput('')
   }
   const openClientModal = () => { resetClientModal(); setShowClientModal(true) }
   const closeClientModal = () => { setShowClientModal(false); resetClientModal() }
@@ -731,6 +742,7 @@ export default function SuperAdminDashboard() {
           login_email: clientForm.login_email, initial_password: clientForm.initial_password,
           plan_type: selectedPlan?.slug || 'basic', product_id: clientForm.product_id,
           max_registers: getMaxRegistersByPlanId(clientForm.plan_id),
+          preset_categories: clientForm.categories.length > 0 ? clientForm.categories : null,
         })
         if (error) throw new Error(getErrorMessage(error, 'Erro ao gerar convite.'))
         await loadAdminData()
@@ -1726,27 +1738,49 @@ export default function SuperAdminDashboard() {
               </div>
             ) : (
               <form onSubmit={handleCreateClient} className="space-y-4">
-                {/* Nome da empresa — sempre visível */}
+                {/* Nome da empresa */}
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-gray-400 uppercase">Nome da Empresa</label>
                   <input required className={inp} value={clientForm.store_name} onChange={e => setClientForm({ ...clientForm, store_name: e.target.value })} />
                 </div>
 
-                {/* WhatsApp — sempre visível, required no create */}
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-gray-400 uppercase">WhatsApp</label>
-                  <input
-                    required={clientModalMode === 'create'}
-                    placeholder="(00) 00000-0000"
-                    className={inp}
-                    value={formatPhone(clientForm.whatsapp)}
-                    onChange={e => setClientForm({ ...clientForm, whatsapp: e.target.value.replace(/\D/g, '') })}
-                  />
-                </div>
+                {/* Modo criação: WhatsApp + Vertical lado a lado */}
+                {clientModalMode === 'create' && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-gray-400 uppercase">WhatsApp</label>
+                      <input
+                        required
+                        placeholder="(00) 00000-0000"
+                        className={inp}
+                        value={formatPhone(clientForm.whatsapp)}
+                        onChange={e => setClientForm({ ...clientForm, whatsapp: e.target.value.replace(/\D/g, '') })}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-gray-400 uppercase">Vertical</label>
+                      <select className={inp} value={clientForm.product_id} onChange={e => handleVerticalChange(e.target.value)}>
+                        {products.length > 0
+                          ? products.map(p => <option key={p.id} value={p.id}>{p.display_name}</option>)
+                          : PRODUCT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)
+                        }
+                      </select>
+                    </div>
+                  </div>
+                )}
 
-                {/* Campos extras — visíveis apenas em modo edição */}
+                {/* Modo edição: WhatsApp + campos extras + Vertical separados */}
                 {clientModalMode !== 'create' && (
                   <>
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-gray-400 uppercase">WhatsApp</label>
+                      <input
+                        placeholder="(00) 00000-0000"
+                        className={inp}
+                        value={formatPhone(clientForm.whatsapp)}
+                        onChange={e => setClientForm({ ...clientForm, whatsapp: e.target.value.replace(/\D/g, '') })}
+                      />
+                    </div>
                     <div className="grid md:grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-xs font-bold text-gray-400 uppercase">Responsável</label>
@@ -1771,21 +1805,19 @@ export default function SuperAdminDashboard() {
                       <label className="text-xs font-bold text-gray-400 uppercase">Senha Inicial</label>
                       <input className={inp} value={clientForm.initial_password} onChange={e => setClientForm({ ...clientForm, initial_password: e.target.value })} />
                     </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-gray-400 uppercase">Vertical</label>
+                      <select className={inp} value={clientForm.product_id} onChange={e => handleVerticalChange(e.target.value)}>
+                        {products.length > 0
+                          ? products.map(p => <option key={p.id} value={p.id}>{p.display_name}</option>)
+                          : PRODUCT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)
+                        }
+                      </select>
+                    </div>
                   </>
                 )}
 
-                {/* Vertical — sempre visível */}
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-gray-400 uppercase">Vertical</label>
-                  <select className={inp} value={clientForm.product_id} onChange={e => handleVerticalChange(e.target.value)}>
-                    {products.length > 0
-                      ? products.map(p => <option key={p.id} value={p.id}>{p.display_name}</option>)
-                      : PRODUCT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)
-                    }
-                  </select>
-                </div>
-
-                {/* Segmentos — sempre visível (quando loja) */}
+                {/* Segmento — sempre visível (quando loja) */}
                 {clientForm.product_id === 'loja' && filteredSegments.length > 0 && (
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-gray-400 uppercase">
@@ -1817,7 +1849,7 @@ export default function SuperAdminDashboard() {
                   </div>
                 )}
 
-                {/* Plano — sempre visível */}
+                {/* Plano */}
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-gray-400 uppercase">Plano</label>
                   <select required={clientModalMode === 'create'} className={inp} value={clientForm.plan_id} onChange={e => setClientForm({ ...clientForm, plan_id: e.target.value })}>
@@ -1825,6 +1857,82 @@ export default function SuperAdminDashboard() {
                     {plans.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
                 </div>
+
+                {/* Categorias — modo criação apenas, opcional */}
+                {clientModalMode === 'create' && (() => {
+                  const segKey = clientForm.segments[0] || (clientForm.product_id === 'loja' ? 'geral' : null)
+                  const pool = segKey ? (PRESET_CATEGORIES[segKey] || PRESET_CATEGORIES.fallback) : PRESET_CATEGORIES.fallback
+                  const suggestions = catInput.trim()
+                    ? pool.filter(s => s.toLowerCase().includes(catInput.toLowerCase()) && !(clientForm.categories || []).includes(s))
+                    : []
+                  function addCategory(name) {
+                    const trimmed = name.trim()
+                    if (!trimmed || (clientForm.categories || []).includes(trimmed)) return
+                    setClientForm(f => ({ ...f, categories: [...(f.categories || []), trimmed] }))
+                    setCatInput('')
+                  }
+                  function removeCategory(name) {
+                    setClientForm(f => ({ ...f, categories: (f.categories || []).filter(c => c !== name) }))
+                  }
+                  return (
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-gray-400 uppercase">
+                        Categorias <span className="normal-case font-normal text-gray-400">(opcional — criadas automaticamente para o cliente)</span>
+                      </label>
+
+                      {/* Tags das categorias adicionadas */}
+                      {(clientForm.categories || []).length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {(clientForm.categories || []).map(cat => (
+                            <span key={cat} className="inline-flex items-center gap-1 bg-violet-50 border border-violet-200 text-violet-700 text-xs font-bold px-2.5 py-1 rounded-lg">
+                              {cat}
+                              <button type="button" onClick={() => removeCategory(cat)} className="text-violet-400 hover:text-violet-700 transition-colors ml-0.5">
+                                <X size={10} />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Input + botão + dropdown */}
+                      <div className="relative">
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={catInput}
+                            onChange={e => setCatInput(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCategory(catInput) } }}
+                            placeholder="Digite uma categoria..."
+                            className={inp + ' flex-1'}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => addCategory(catInput)}
+                            disabled={!catInput.trim()}
+                            className="flex items-center justify-center w-10 h-10 rounded-xl bg-violet-600 hover:bg-violet-700 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
+                          >
+                            <Plus size={16} />
+                          </button>
+                        </div>
+
+                        {suggestions.length > 0 && (
+                          <div className="absolute z-10 left-0 right-12 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+                            {suggestions.map(s => (
+                              <button
+                                key={s}
+                                type="button"
+                                onMouseDown={e => { e.preventDefault(); addCategory(s) }}
+                                className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-violet-50 hover:text-violet-700 font-medium transition-colors"
+                              >
+                                {s}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })()}
 
                 {/* Endereço + Observações — visíveis apenas em modo edição */}
                 {clientModalMode !== 'create' && (

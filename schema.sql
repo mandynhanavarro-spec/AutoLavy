@@ -645,6 +645,14 @@ BEGIN
     status = EXCLUDED.status,
     updated_at = NOW();
 
+  IF v_invite.preset_categories IS NOT NULL
+     AND jsonb_array_length(v_invite.preset_categories) > 0 THEN
+    INSERT INTO public.categories (org_id, name)
+    SELECT v_org_id, cat_name
+    FROM jsonb_array_elements_text(v_invite.preset_categories) AS cat_name
+    WHERE trim(cat_name) <> '';
+  END IF;
+
   UPDATE public.store_invites
   SET
     is_used = TRUE,
