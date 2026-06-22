@@ -1700,7 +1700,16 @@ export default function SuperAdminDashboard() {
                   onClick={() => {
                     const digits = (clientForm.whatsapp || '').replace(/\D/g, '')
                     const number = digits.startsWith('55') ? digits : `55${digits}`
-                    const msg = `Olá! 🎉 Seu acesso ao sistema está pronto.\nClique no link abaixo para criar sua senha e configurar sua loja em poucos minutos:\n${generatedLink}`
+                    const nomeLoja = clientForm.store_name || 'você'
+                    const msg = [
+                      `Olá ${nomeLoja}! 🎉`,
+                      `Seu negócio acaba de dar um grande passo!`,
+                      `A partir de hoje fica muito mais fácil acompanhar suas vendas, estoque e fechamento do dia — tudo na palma da mão.`,
+                      ``,
+                      `🔗 Acesso: ${generatedLink}`,
+                      ``,
+                      `Qualquer dúvida estou aqui! 😊`
+                    ].join('\n')
                     window.open(`https://wa.me/${number}?text=${encodeURIComponent(msg)}`, '_blank')
                   }}
                   disabled={!(clientForm.whatsapp || '').replace(/\D/g, '')}
