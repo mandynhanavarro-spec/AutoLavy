@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Navigate } from 'react-router-dom'
 import { Store, Tag, Users, Check, Plus, X, ArrowRight, CheckCircle2 } from 'lucide-react'
 import { supabase } from '../../../../shared/lib/supabase'
@@ -29,9 +29,27 @@ export default function LojaOnboarding() {
   const [pendingCategories, setPending]     = useState([])
   const [saving, setSaving]                 = useState(false)
 
+  // Categorias já existentes no banco (criadas pelo SuperAdmin via preset)
+  const [existingCats, setExistingCats]     = useState(null) // null = carregando
   const [checked, setChecked]               = useState(() => new Set(suggestions))
   const [customInput, setCustomInput]       = useState('')
   const [customCats, setCustomCats]         = useState([])
+
+  useEffect(() => {
+    if (!orgId) return
+    supabase
+      .from('categories')
+      .select('id, name')
+      .eq('org_id', orgId)
+      .then(({ data }) => {
+        const cats = data || []
+        setExistingCats(cats)
+        if (cats.length > 0) {
+          // Banco já tem categorias — marcar todas como checked para o usuário ver
+          setChecked(new Set(cats.map(c => c.name)))
+        }
+      })
+  }, [orgId])
 
   // Já concluído (acesso direto via URL) → redireciona
   if (tenant?.onboarding_completed) {
@@ -128,7 +146,24 @@ export default function LojaOnboarding() {
 
   /* ── Step 1: Categorias ──────────────────────────────────── */
   if (step === 1) {
-    const allChecked = [...suggestions, ...customCats].filter(n => checked.has(n))
+    // Aguarda a query do banco antes de renderizar o step
+    if (existingCats === null) {
+      return (
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="w-6 h-6 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: color, borderTopColor: 'transparent' }} />
+        </div>
+      )
+    }
+
+    const hasExisting = existingCats.length > 0
+    // Lista base: categorias do banco OU sugestões hardcoded por segmento
+    const baseList    = hasExisting ? existingCats.map(c => c.name) : suggestions
+    // Nomes que já existem no banco — não serão re-inseridos no finish()
+    const existingNames = new Set(existingCats.map(c => c.name))
+    // Todos os itens exibidos (base + customizados pelo usuário nesta sessão)
+    const allItems    = [...baseList, ...customCats]
+    const allChecked  = allItems.filter(n => checked.has(n))
+
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="w-full max-w-sm bg-white rounded-3xl p-6 shadow-sm border border-gray-100 space-y-4">
@@ -143,40 +178,48 @@ export default function LojaOnboarding() {
             </div>
             <div>
               <h2 className="text-lg font-black text-gray-900">Categorias da loja</h2>
-              <p className="text-xs text-gray-400">Quais categorias sua loja tem?</p>
+              <p className="text-xs text-gray-400">
+                {hasExisting
+                  ? 'Categorias configuradas — adicione mais se quiser'
+                  : 'Quais categorias sua loja tem?'}
+              </p>
             </div>
           </div>
 
           <div className="space-y-2">
-            {[...suggestions, ...customCats].map(name => {
-              const isChecked = checked.has(name)
-              const isCustom  = customCats.includes(name)
+            {allItems.map(name => {
+              const isChecked  = checked.has(name)
+              const isExisting = existingNames.has(name)
+              const isCustom   = customCats.includes(name)
               return (
                 <label
                   key={name}
-                  className="flex items-center gap-3 rounded-2xl px-4 py-3 cursor-pointer border transition-colors"
+                  className="flex items-center gap-3 rounded-2xl px-4 py-3 border transition-colors"
                   style={isChecked
                     ? { borderColor: color + '40', backgroundColor: color + '12' }
                     : { borderColor: '#f3f4f6', backgroundColor: '#f9fafb' }
                   }
                 >
                   <div
-                    className="w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors"
+                    className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors ${isExisting ? '' : 'cursor-pointer'}`}
                     style={isChecked
                       ? { backgroundColor: color, borderColor: color }
                       : { borderColor: '#d1d5db' }
                     }
-                    onClick={() => toggleSuggestion(name)}
+                    onClick={() => !isExisting && toggleSuggestion(name)}
                   >
                     {isChecked && <Check size={11} color="white" strokeWidth={3} />}
                   </div>
                   <span
-                    className="flex-1 text-sm font-semibold"
+                    className={`flex-1 text-sm font-semibold ${isExisting ? '' : 'cursor-pointer'}`}
                     style={{ color: isChecked ? '#111827' : '#6b7280' }}
-                    onClick={() => toggleSuggestion(name)}
+                    onClick={() => !isExisting && toggleSuggestion(name)}
                   >
                     {name}
                   </span>
+                  {isExisting && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600">já criada</span>
+                  )}
                   {isCustom && (
                     <button
                       type="button"
@@ -211,19 +254,30 @@ export default function LojaOnboarding() {
           </div>
 
           <div className="flex gap-2 pt-1">
+            {!hasExisting && (
+              <button
+                onClick={() => goToTeamStep([])}
+                className="flex-1 py-3 rounded-2xl bg-gray-100 text-gray-600 font-bold text-sm"
+              >
+                Pular
+              </button>
+            )}
             <button
-              onClick={() => goToTeamStep([])}
-              className="flex-1 py-3 rounded-2xl bg-gray-100 text-gray-600 font-bold text-sm"
-            >
-              Pular
-            </button>
-            <button
-              onClick={() => goToTeamStep(allChecked)}
-              disabled={allChecked.length === 0}
-              className="flex-1 py-3 rounded-2xl text-white font-bold text-sm shadow-md disabled:opacity-50 transition-opacity"
+              onClick={() => {
+                // Só envia para criação os itens NÃO existentes no banco
+                const toCreate = allChecked.filter(n => !existingNames.has(n))
+                goToTeamStep(toCreate)
+              }}
+              className="flex-1 py-3 rounded-2xl text-white font-bold text-sm shadow-md transition-opacity"
               style={{ backgroundColor: color }}
             >
-              Criar {allChecked.length > 0 ? `(${allChecked.length})` : ''}
+              {hasExisting
+                ? customCats.filter(n => checked.has(n)).length > 0
+                  ? `Confirmar e adicionar (${customCats.filter(n => checked.has(n)).length})`
+                  : 'Confirmar e continuar'
+                : allChecked.length > 0
+                  ? `Criar (${allChecked.length})`
+                  : 'Continuar'}
             </button>
           </div>
         </div>
