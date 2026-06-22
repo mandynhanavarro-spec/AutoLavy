@@ -122,6 +122,15 @@ const initialPaymentForm = {
 
 const initialAdminForm = { name: '', email: '', profile: 'administrador' }
 
+function formatPhone(value) {
+  const d = (value || '').replace(/\D/g, '').slice(0, 11)
+  if (d.length === 0) return ''
+  if (d.length <= 2) return `(${d}`
+  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`
+  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`
+  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
+}
+
 const initialSummary = {
   totalCustomers: 0, activeCustomers: 0, suspendedCustomers: 0,
   monthlyRevenue: 0, activePlans: 0,
@@ -1686,6 +1695,20 @@ export default function SuperAdminDashboard() {
                   <Copy size={16} />
                   {isActionRunning(`copy-link-${getTokenFromInviteLink(generatedLink)}`) ? 'Copiando...' : 'Copiar link completo'}
                 </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const digits = (clientForm.whatsapp || '').replace(/\D/g, '')
+                    const number = digits.startsWith('55') ? digits : `55${digits}`
+                    const msg = `Olá! 🎉 Seu acesso ao sistema está pronto.\nClique no link abaixo para criar sua senha e configurar sua loja em poucos minutos:\n${generatedLink}`
+                    window.open(`https://wa.me/${number}?text=${encodeURIComponent(msg)}`, '_blank')
+                  }}
+                  disabled={!(clientForm.whatsapp || '').replace(/\D/g, '')}
+                  className="w-full py-3 text-white font-bold rounded-2xl flex items-center justify-center gap-2 transition-colors text-sm disabled:opacity-50"
+                  style={{ backgroundColor: '#25D366' }}
+                >
+                  💬 Enviar via WhatsApp
+                </button>
                 <a href={generatedLink} target="_blank" rel="noopener noreferrer"
                   className="w-full py-3 border-2 border-violet-200 text-violet-700 font-bold rounded-2xl flex items-center justify-center gap-2 hover:bg-violet-50 transition-colors text-sm">
                   <ExternalLink size={15} />
@@ -1694,51 +1717,66 @@ export default function SuperAdminDashboard() {
               </div>
             ) : (
               <form onSubmit={handleCreateClient} className="space-y-4">
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-400 uppercase">Nome da Empresa</label>
-                    <input required className={inp} value={clientForm.store_name} onChange={e => setClientForm({ ...clientForm, store_name: e.target.value })} />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-400 uppercase">Responsável</label>
-                    <input required className={inp} value={clientForm.responsible_name} onChange={e => setClientForm({ ...clientForm, responsible_name: e.target.value })} />
-                  </div>
+                {/* Nome da empresa — sempre visível */}
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-400 uppercase">Nome da Empresa</label>
+                  <input required className={inp} value={clientForm.store_name} onChange={e => setClientForm({ ...clientForm, store_name: e.target.value })} />
                 </div>
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-400 uppercase">CPF/CNPJ</label>
-                    <input className={inp} value={clientForm.company_document} onChange={e => setClientForm({ ...clientForm, company_document: e.target.value })} />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-400 uppercase">WhatsApp</label>
-                    <input className={inp} value={clientForm.whatsapp} onChange={e => setClientForm({ ...clientForm, whatsapp: e.target.value })} />
-                  </div>
+
+                {/* WhatsApp — sempre visível, required no create */}
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-400 uppercase">WhatsApp</label>
+                  <input
+                    required={clientModalMode === 'create'}
+                    placeholder="(00) 00000-0000"
+                    className={inp}
+                    value={formatPhone(clientForm.whatsapp)}
+                    onChange={e => setClientForm({ ...clientForm, whatsapp: e.target.value.replace(/\D/g, '') })}
+                  />
                 </div>
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-400 uppercase">E-mail</label>
-                    <input type="email" className={inp} value={clientForm.contact_email} onChange={e => setClientForm({ ...clientForm, contact_email: e.target.value })} />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-400 uppercase">E-mail de Login</label>
-                    <input type="email" className={inp} value={clientForm.login_email} onChange={e => setClientForm({ ...clientForm, login_email: e.target.value })} />
-                  </div>
+
+                {/* Campos extras — visíveis apenas em modo edição */}
+                {clientModalMode !== 'create' && (
+                  <>
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-gray-400 uppercase">Responsável</label>
+                        <input className={inp} value={clientForm.responsible_name} onChange={e => setClientForm({ ...clientForm, responsible_name: e.target.value })} />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-gray-400 uppercase">CPF/CNPJ</label>
+                        <input className={inp} value={clientForm.company_document} onChange={e => setClientForm({ ...clientForm, company_document: e.target.value })} />
+                      </div>
+                    </div>
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-gray-400 uppercase">E-mail</label>
+                        <input type="email" className={inp} value={clientForm.contact_email} onChange={e => setClientForm({ ...clientForm, contact_email: e.target.value })} />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-gray-400 uppercase">E-mail de Login</label>
+                        <input type="email" className={inp} value={clientForm.login_email} onChange={e => setClientForm({ ...clientForm, login_email: e.target.value })} />
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-gray-400 uppercase">Senha Inicial</label>
+                      <input className={inp} value={clientForm.initial_password} onChange={e => setClientForm({ ...clientForm, initial_password: e.target.value })} />
+                    </div>
+                  </>
+                )}
+
+                {/* Vertical — sempre visível */}
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-400 uppercase">Vertical</label>
+                  <select className={inp} value={clientForm.product_id} onChange={e => handleVerticalChange(e.target.value)}>
+                    {products.length > 0
+                      ? products.map(p => <option key={p.id} value={p.id}>{p.display_name}</option>)
+                      : PRODUCT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)
+                    }
+                  </select>
                 </div>
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-400 uppercase">Senha Inicial</label>
-                    <input className={inp} value={clientForm.initial_password} onChange={e => setClientForm({ ...clientForm, initial_password: e.target.value })} />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-400 uppercase">Vertical</label>
-                    <select className={inp} value={clientForm.product_id} onChange={e => handleVerticalChange(e.target.value)}>
-                      {products.length > 0
-                        ? products.map(p => <option key={p.id} value={p.id}>{p.display_name}</option>)
-                        : PRODUCT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)
-                      }
-                    </select>
-                  </div>
-                </div>
+
+                {/* Segmentos — sempre visível (quando loja) */}
                 {clientForm.product_id === 'loja' && filteredSegments.length > 0 && (
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-gray-400 uppercase">
@@ -1769,23 +1807,29 @@ export default function SuperAdminDashboard() {
                     </div>
                   </div>
                 )}
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-400 uppercase">Plano</label>
-                    <select className={inp} value={clientForm.plan_id} onChange={e => setClientForm({ ...clientForm, plan_id: e.target.value })}>
-                      <option value="">Selecione</option>
-                      {plans.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-400 uppercase">Endereço</label>
-                    <input className={inp} value={clientForm.address} onChange={e => setClientForm({ ...clientForm, address: e.target.value })} />
-                  </div>
-                </div>
+
+                {/* Plano — sempre visível */}
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-gray-400 uppercase">Observações</label>
-                  <textarea className={inp + ' min-h-[80px] resize-none'} value={clientForm.notes} onChange={e => setClientForm({ ...clientForm, notes: e.target.value })} />
+                  <label className="text-xs font-bold text-gray-400 uppercase">Plano</label>
+                  <select required={clientModalMode === 'create'} className={inp} value={clientForm.plan_id} onChange={e => setClientForm({ ...clientForm, plan_id: e.target.value })}>
+                    <option value="">Selecione</option>
+                    {plans.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
                 </div>
+
+                {/* Endereço + Observações — visíveis apenas em modo edição */}
+                {clientModalMode !== 'create' && (
+                  <>
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-gray-400 uppercase">Endereço</label>
+                      <input className={inp} value={clientForm.address} onChange={e => setClientForm({ ...clientForm, address: e.target.value })} />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-gray-400 uppercase">Observações</label>
+                      <textarea className={inp + ' min-h-[80px] resize-none'} value={clientForm.notes} onChange={e => setClientForm({ ...clientForm, notes: e.target.value })} />
+                    </div>
+                  </>
+                )}
 
                 {/* PDVs / Caixas — only visible in edit-active mode */}
                 {clientModalMode === 'edit-active' && (
