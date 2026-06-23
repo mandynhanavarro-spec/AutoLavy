@@ -39,13 +39,21 @@ const PAYMENT_METHOD_OPTIONS = [
 
 const PROVIDER_OPTIONS = ['stripe', 'mercado_pago', 'asaas', 'pagarme']
 
-const NAV_ITEMS = [
-  { key: 'dashboard',    label: 'Dashboard',   icon: LayoutDashboard },
-  { key: 'clientes',     label: 'Clientes',    icon: Building2 },
-  { key: 'planos',       label: 'Planos',      icon: WalletCards },
-  { key: 'funcoes',      label: 'Funções',     icon: Users },
-  { key: 'pagamentos',   label: 'Pagamentos',  icon: CreditCard },
-  { key: 'configuracoes',label: 'Configurações',icon: Settings2 },
+const NAV_GROUPS = [
+  { items: [
+    { key: 'dashboard',     label: 'Dashboard',    icon: LayoutDashboard },
+  ]},
+  { group: 'Gestão', items: [
+    { key: 'clientes',      label: 'Clientes',     icon: Building2   },
+    { key: 'planos',        label: 'Planos',       icon: WalletCards },
+    { key: 'funcoes',       label: 'Funções',      icon: Users       },
+  ]},
+  { group: 'Financeiro', items: [
+    { key: 'pagamentos',    label: 'Pagamentos',   icon: CreditCard  },
+  ]},
+  { group: 'Sistema', items: [
+    { key: 'configuracoes', label: 'Configurações',icon: Settings2   },
+  ]},
 ]
 
 const SECTION_META = {
@@ -1048,19 +1056,28 @@ export default function SuperAdminDashboard() {
 
         {/* nav */}
         <nav className="flex-1 px-3 py-5 space-y-1 overflow-y-auto">
-          {NAV_ITEMS.map(({ key, label, icon: Icon }) => (
-            <button
-              key={key}
-              onClick={() => setActiveTab(key)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all text-left ${
-                activeTab === key
-                  ? 'bg-[#7c3aed] text-white shadow-lg shadow-violet-900/40'
-                  : 'text-purple-200/80 hover:bg-white/10 hover:text-white'
-              }`}
-            >
-              <Icon size={16} className="shrink-0" />
-              {label}
-            </button>
+          {NAV_GROUPS.map(({ group, items }) => (
+            <div key={group || '__root'}>
+              {group && (
+                <p className="text-[10px] font-bold text-gray-400 px-3 pt-5 pb-1 uppercase tracking-widest">
+                  {group}
+                </p>
+              )}
+              {items.map(({ key, label, icon: Icon }) => (
+                <button
+                  key={key}
+                  onClick={() => setActiveTab(key)}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all text-left ${
+                    activeTab === key
+                      ? 'bg-[#7c3aed] text-white shadow-lg shadow-violet-900/40'
+                      : 'text-purple-200/80 hover:bg-white/10 hover:text-white'
+                  }`}
+                >
+                  <Icon size={16} className="shrink-0" />
+                  {label}
+                </button>
+              ))}
+            </div>
           ))}
         </nav>
 
