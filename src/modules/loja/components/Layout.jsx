@@ -27,11 +27,13 @@ const VERTICAL_DISPLAY = {
 
 const NAV_MAIN = [
   { path: '/',           icon: LayoutDashboard, label: 'Dashboard'                        },
-  { path: '/pdv',        icon: ShoppingCart,    label: 'PDV'                              },
+  { path: '/pdv',        icon: ShoppingCart,    label: 'Venda'                            },
   { path: '/produtos',   icon: Package,         label: 'Produtos',   module: 'produtos'   },
-  { path: '/historico',  icon: History,         label: 'Histórico',  module: 'historico'  },
-  { path: '/fechamento', icon: DollarSign,      label: 'Fechamento', module: 'relatorios' },
   { path: '/equipe',     icon: Users,           label: 'Equipe'                           },
+]
+const NAV_FINANCEIRO = [
+  { path: '/fechamento', icon: DollarSign,      label: 'Fechamento', module: 'relatorios' },
+  { path: '/historico',  icon: History,         label: 'Histórico',  module: 'historico'  },
 ]
 const NAV_SISTEMA = [
   { path: '/configuracoes', icon: Settings, label: 'Configurações' },
@@ -125,6 +127,15 @@ export default function Layout({ profile }) {
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto p-3 space-y-0.5">
           {NAV_MAIN.map(({ module: mod, ...i }) =>
+            mod
+              ? <ModuleGuard key={i.path} module={mod}><SLink {...i} /></ModuleGuard>
+              : <SLink key={i.path} {...i} />
+          )}
+
+          <p className="text-[10px] font-bold text-gray-400 px-3 pt-5 pb-1 uppercase tracking-widest">
+            Financeiro
+          </p>
+          {NAV_FINANCEIRO.map(({ module: mod, ...i }) =>
             mod
               ? <ModuleGuard key={i.path} module={mod}><SLink {...i} /></ModuleGuard>
               : <SLink key={i.path} {...i} />
