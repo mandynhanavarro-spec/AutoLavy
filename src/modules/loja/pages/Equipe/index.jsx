@@ -3,7 +3,7 @@ import {
   Users, UserPlus, UserX, UserCheck,
   Shield, ChevronDown, Copy, Check,
   KeyRound, RefreshCw, X, ChevronRight,
-  Sliders, RotateCcw,
+  Sliders, RotateCcw, Trash2,
 } from 'lucide-react'
 import { supabase } from '../../../../shared/lib/supabase'
 import { useTenantContext } from '../../../../core/contexts/TenantContext'
@@ -103,6 +103,7 @@ export default function Equipe() {
   const [loading, setLoading]           = useState(true)
   const [updatingRole, setUpdatingRole] = useState(null)
   const [toggling, setToggling]         = useState(null)
+  const [deleting, setDeleting]         = useState(null)
 
   /* templates */
   const [templates, setTemplates] = useState([])
@@ -128,6 +129,21 @@ export default function Equipe() {
   const [editSaving, setEditSaving]   = useState(false)
   const [editError, setEditError]     = useState('')
 
+  /* delete employee (soft delete) */
+  async function deleteEmployee(member) {
+    if (!window.confirm(
+      `Excluir "${member.full_name || 'este funcionário'}"? O histórico será mantido mas o acesso será removido permanentemente.`
+    )) return
+    setDeleting(member.id)
+    await supabase
+      .from('profiles')
+      .update({ access_status: 'excluido' })
+      .eq('id', member.id)
+      .eq('org_id', orgId)
+    setDeleting(null)
+    load()
+  }
+
   /* reset password modal */
   const [rstTarget, setRstTarget] = useState(null)
   const [rstPass, setRstPass]     = useState('')
@@ -143,6 +159,7 @@ export default function Equipe() {
       .from('profiles')
       .select('id, full_name, role, access_status, permissions, template_id')
       .eq('org_id', orgId)
+      .neq('access_status', 'excluido')
       .order('role')
     setMembers(data || [])
     setLoading(false)
@@ -400,6 +417,14 @@ export default function Equipe() {
                         ? <UserX size={15} className="text-red-500" />
                         : <UserCheck size={15} className="text-emerald-600" />
                       }
+                    </button>
+                    <button
+                      onClick={() => deleteEmployee(m)}
+                      disabled={deleting === m.id}
+                      title="Excluir funcionário"
+                      className="w-9 h-9 rounded-xl bg-red-50 hover:bg-red-100 flex items-center justify-center transition-colors disabled:opacity-40"
+                    >
+                      <Trash2 size={15} className="text-red-500" />
                     </button>
                   </div>
                 )}
