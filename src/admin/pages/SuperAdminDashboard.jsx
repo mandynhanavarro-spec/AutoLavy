@@ -4,7 +4,7 @@ import {
   BadgeDollarSign, Building2, CheckCircle2, Clock, Copy, CreditCard,
   ExternalLink, FileText, KeyRound, LayoutDashboard, Lock,
   LogOut, Monitor, Plus, Search, Settings2, Shield, Trash2,
-  WalletCards, X, Users, Pencil, Eye, EyeOff,
+  WalletCards, X, Users, Pencil, Eye, EyeOff, LogIn,
 } from 'lucide-react'
 import { supabase } from '../../shared/lib/supabase'
 import { LogoAutoLavy } from '../../shared/components/Logo'
@@ -608,6 +608,14 @@ export default function SuperAdminDashboard() {
       catch { showWarning('Convite reenviado, mas nao foi possivel copiar o link.') }
     } catch (err) { showError(err, 'Nao foi possivel reenviar.') }
     finally { finishAction() }
+  }
+
+  function enterSupportMode(org) {
+    if (!window.confirm(`Acessar o painel de "${org.name}" como suporte?`)) return
+    sessionStorage.setItem('support_org_id', org.id)
+    sessionStorage.setItem('support_org_name', org.name)
+    sessionStorage.setItem('support_mode', 'true')
+    window.location.href = '/'
   }
 
   const handleToggleCustomerStatus = async customer => {
@@ -1397,6 +1405,10 @@ export default function SuperAdminDashboard() {
                               <button type="button" onClick={() => { setDeleteTarget(c); setDeletePassword(''); setDeleteError('') }}
                                 className="rounded-xl bg-rose-50 border border-rose-200 px-3 py-1.5 text-xs font-bold text-rose-600 hover:bg-rose-100 transition-colors" title="Excluir permanentemente">
                                 <Trash2 size={13} />
+                              </button>
+                              <button type="button" onClick={() => enterSupportMode(c)} title="Acessar como cliente"
+                                className="w-9 h-9 rounded-xl bg-blue-50 hover:bg-blue-100 flex items-center justify-center transition-colors">
+                                <LogIn size={15} className="text-blue-500" />
                               </button>
                             </div>
                           </td>

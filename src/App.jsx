@@ -223,6 +223,16 @@ function NoOrganizationPage() {
 export default function App() {
   useServiceWorker()
 
+  const supportMode    = sessionStorage.getItem('support_mode') === 'true'
+  const supportOrgName = sessionStorage.getItem('support_org_name')
+
+  function exitSupportMode() {
+    sessionStorage.removeItem('support_mode')
+    sessionStorage.removeItem('support_org_id')
+    sessionStorage.removeItem('support_org_name')
+    window.location.href = '/superadmin'
+  }
+
   const [session, setSession] = useState(null)
   const [profile, setProfile] = useState(null)
   const [tenant, setTenant] = useState(null)
@@ -250,12 +260,16 @@ export default function App() {
         .eq('id', currentSession.user.id)
         .single()
 
+      const _supportOrgId   = sessionStorage.getItem('support_org_id')
+      const _isSupportMode  = sessionStorage.getItem('support_mode') === 'true'
+      const effectiveOrgId  = (_isSupportMode && _supportOrgId) ? _supportOrgId : loadedProfile?.org_id
+
       let loadedTenant = null
-      if (loadedProfile?.org_id) {
+      if (effectiveOrgId) {
         const { data } = await supabase
           .from('organizations')
           .select('*')
-          .eq('id', loadedProfile.org_id)
+          .eq('id', effectiveOrgId)
           .single()
         loadedTenant = data || null
       }
@@ -325,7 +339,7 @@ export default function App() {
   }
 
   // ── SuperAdmin: arvore de rotas propria, sem vertical ────────
-  if (session && profile?.role === 'superadmin') {
+  if (session && profile?.role === 'superadmin' && !supportMode) {
     return (
       <TenantProvider value={{ tenant: null, modules: [], profile, loading: false }}>
         <Router>
@@ -379,6 +393,27 @@ export default function App() {
 
   return (
     <TenantProvider value={{ tenant, modules, profile, loading: false }}>
+      {supportMode && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9999,
+          backgroundColor: '#f59e0b', padding: '6px 16px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: '#78350f' }}>
+            Modo suporte — {supportOrgName}
+          </span>
+          <button
+            onClick={exitSupportMode}
+            style={{
+              fontSize: 12, fontWeight: 700, color: '#78350f',
+              background: 'rgba(0,0,0,0.1)', border: 'none',
+              borderRadius: 6, padding: '3px 10px', cursor: 'pointer',
+            }}
+          >
+            Sair do suporte
+          </button>
+        </div>
+      )}
       <Router>
         <Routes>
           <Route path="/login"      element={!session ? <LoginPage /> : <Navigate to="/" replace />} />
