@@ -574,7 +574,9 @@ SELECT pg_notify('pgrst', 'reload schema');`}
         <div ref={historyRef}>
           <h2 className="text-sm font-black text-gray-700 mb-3">Fechamentos anteriores</h2>
           <div className="space-y-2">
-            {closings.map(c => (
+            {closings.map(c => {
+              const registerName = registers.find(r => r.id === c.register_id)?.name
+              return (
               <div
                 key={c.id}
                 className="bg-white rounded-2xl px-4 py-3 border border-gray-100 shadow-sm flex items-center justify-between gap-3"
@@ -589,6 +591,11 @@ SELECT pg_notify('pgrst', 'reload schema');`}
                         day: '2-digit', month: 'long', year: 'numeric',
                       })}
                     </p>
+                    {isMulti && registerName && (
+                      <span className="text-[11px] font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-lg">
+                        {registerName}
+                      </span>
+                    )}
                     <p className="text-[11px] text-gray-400">
                       {c.total_transactions} venda{c.total_transactions !== 1 ? 's' : ''} · fechado às{' '}
                       {new Date(c.closed_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
@@ -616,7 +623,7 @@ SELECT pg_notify('pgrst', 'reload schema');`}
                   </div>
                 </div>
               </div>
-            ))}
+            )})}
           </div>
         </div>
       )}
