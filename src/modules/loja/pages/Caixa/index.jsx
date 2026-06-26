@@ -203,6 +203,8 @@ export default function Caixa() {
   const [variantModal, setVariantModal]           = useState(null) // null | { product, variants }
   const [productAttrs, setProductAttrs]           = useState({})  // product_id → { serial_number }
   const [catSegmentMap, setCatSegmentMap]         = useState({})  // category_id → segment_id
+  const [salesOrder, setSalesOrder]               = useState('hoje') // 'hoje' | 'semana'
+  const [salesCount, setSalesCount]               = useState({})
 
   const cartItems = cart.reduce((s, i) => s + i.qty, 0)
   const cartTotal = cart.reduce((s, i) => s + itemPrice(i) * i.qty, 0)
@@ -306,10 +308,26 @@ export default function Caixa() {
         }
       }
 
+      const periodStart = new Date()
+      if (salesOrder === 'semana') {
+        periodStart.setDate(periodStart.getDate() - 7)
+      }
+      periodStart.setHours(0, 0, 0, 0)
+      const { data: salesData } = await supabase
+        .from('sale_items')
+        .select('product_id, quantity')
+        .eq('org_id', orgId)
+        .gte('created_at', periodStart.toISOString())
+      const salesMap = {}
+      ;(salesData || []).forEach(item => {
+        salesMap[item.product_id] = (salesMap[item.product_id] || 0) + Number(item.quantity)
+      })
+      setSalesCount(salesMap)
+
       setLoading(false)
     }
     load()
-  }, [orgId, activeRegister, segment])
+  }, [orgId, activeRegister, segment, salesOrder])
 
   function selectRegister(reg) {
     setActiveRegister(reg)
@@ -571,6 +589,8 @@ export default function Caixa() {
     return matchSearch && matchCategory
   })
 
+  const sorted = [...filtered].sort((a, b) => (salesCount[b.id] || 0) - (salesCount[a.id] || 0))
+
   const bottomPad = cart.length > 0 ? 'pb-[360px]' : 'pb-6'
 
   /* ── modal helpers ─────────────────────────────────────────── */
@@ -705,6 +725,23 @@ export default function Caixa() {
         </div>
       </div>
 
+      {/* ── period toggle ── */}
+      <div className="px-4 pb-3 flex gap-1.5">
+        {[{ key: 'hoje', label: 'Hoje' }, { key: 'semana', label: 'Semana' }].map(({ key, label }) => (
+          <button
+            key={key}
+            onClick={() => setSalesOrder(key)}
+            className="px-3 py-1.5 rounded-xl text-xs font-bold border transition-all"
+            style={salesOrder === key
+              ? { backgroundColor: '#0891b2', color: 'white', borderColor: '#0891b2' }
+              : { backgroundColor: 'white', color: '#6b7280', borderColor: '#e5e7eb' }
+            }
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       {/* ── product grid ── */}
       <div className={`px-4 ${bottomPad}`}>
         {loading ? (
@@ -713,7 +750,7 @@ export default function Caixa() {
               <div key={i} className="h-40 bg-gray-100 rounded-2xl animate-pulse" />
             ))}
           </div>
-        ) : filtered.length === 0 ? (
+        ) : sorted.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 gap-2 text-center">
             <Package size={36} className="text-gray-300" />
             <p className="text-sm font-semibold text-gray-400">
@@ -731,7 +768,7 @@ export default function Caixa() {
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-            {filtered.map(product => {
+            {sorted.map(product => {
               const hasVariants = getProductSegment(product) === 'moda' && (variantsByProduct[product.id]?.length > 0)
 
               /* stock check — variants use their own totals */
