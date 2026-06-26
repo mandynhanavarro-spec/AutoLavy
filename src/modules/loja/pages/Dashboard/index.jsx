@@ -170,7 +170,7 @@ export default function Dashboard() {
           style={{ backgroundColor: themeColor }}
         >
           <ShoppingCart size={15} />
-          Abrir PDV
+          Nova Venda
         </button>
       </div>
 
