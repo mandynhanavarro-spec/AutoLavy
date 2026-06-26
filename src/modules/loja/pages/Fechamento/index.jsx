@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   DollarSign, Banknote, QrCode, CreditCard,
   CheckCircle, Clock, AlertTriangle, Lock,
   ArrowDownCircle, ArrowUpCircle,
+  History, LayoutDashboard, Users,
 } from 'lucide-react'
 import { supabase } from '../../../../shared/lib/supabase'
 import { useTenantContext } from '../../../../core/contexts/TenantContext'
@@ -31,6 +33,8 @@ export default function Fechamento() {
   const canClose  = can('can_close_cash')
   const orgId     = tenant?.id
   const color     = '#0891b2'
+  const navigate  = useNavigate()
+  const historyRef = useRef(null)
 
   const [todaySales, setTodaySales]       = useState([])
   const [closings, setClosings]           = useState([])
@@ -213,8 +217,57 @@ export default function Fechamento() {
   const noneClosedYet  = isMulti && registers.every(r => !closedToday[r.id])
   const allClosedToday = isMulti && registers.every(r => !!closedToday[r.id])
 
+  const quickCloseDisabled =
+    !canClose || closing !== null || !tableReady || todaySales.length === 0 ||
+    (!isMulti && alreadyClosed) || (isMulti && allClosedToday)
+
   return (
     <div className="p-4 md:p-6 space-y-6">
+
+      {/* ── Mobile quick actions ── */}
+      <div className="md:hidden grid grid-cols-2 gap-2.5">
+        <button
+          onClick={() => isMulti ? fecharTodos() : fecharCaixa()}
+          disabled={quickCloseDisabled}
+          className="flex flex-col items-center justify-center gap-1.5 rounded-[10px] p-3"
+          style={{ backgroundColor: quickCloseDisabled ? '#e5e7eb' : '#0891b2' }}
+        >
+          <Lock size={22} style={{ color: quickCloseDisabled ? '#9ca3af' : 'white' }} />
+          <span
+            className="text-[10px] font-bold"
+            style={{ color: quickCloseDisabled ? '#9ca3af' : 'white' }}
+          >
+            Fechar caixa
+          </span>
+        </button>
+
+        <button
+          onClick={() => historyRef.current?.scrollIntoView({ behavior: 'smooth' })}
+          className="flex flex-col items-center justify-center gap-1.5 rounded-[10px] p-3 bg-white border"
+          style={{ borderColor: '#e5e7eb' }}
+        >
+          <History size={22} style={{ color: '#0891b2' }} />
+          <span className="text-[10px] font-bold text-gray-700">Histórico</span>
+        </button>
+
+        <button
+          onClick={() => navigate('/')}
+          className="flex flex-col items-center justify-center gap-1.5 rounded-[10px] p-3 bg-white border"
+          style={{ borderColor: '#e5e7eb' }}
+        >
+          <LayoutDashboard size={22} style={{ color: '#0891b2' }} />
+          <span className="text-[10px] font-bold text-gray-700">Ir ao Dashboard</span>
+        </button>
+
+        <button
+          onClick={() => navigate('/equipe')}
+          className="flex flex-col items-center justify-center gap-1.5 rounded-[10px] p-3 bg-white border"
+          style={{ borderColor: '#e5e7eb' }}
+        >
+          <Users size={22} style={{ color: '#0891b2' }} />
+          <span className="text-[10px] font-bold text-gray-700">Equipe</span>
+        </button>
+      </div>
 
       {/* Header */}
       <div>
@@ -518,7 +571,7 @@ SELECT pg_notify('pgrst', 'reload schema');`}
 
       {/* Previous closings */}
       {tableReady && closings.length > 0 && (
-        <div>
+        <div ref={historyRef}>
           <h2 className="text-sm font-black text-gray-700 mb-3">Fechamentos anteriores</h2>
           <div className="space-y-2">
             {closings.map(c => (
