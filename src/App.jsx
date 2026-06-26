@@ -4,6 +4,7 @@ import { TenantProvider } from './core/contexts/TenantContext'
 import Register from './core/pages/Register'
 import SuspensaoPage from './core/pages/Suspenso'
 import { supabase } from './shared/lib/supabase'
+import { useServiceWorker } from './hooks/useServiceWorker'
 
 // ── Loja vertical (lazy) ──────────────────────────────────────
 const LojaLayout        = lazy(() => import('./modules/loja/components/Layout'))
@@ -220,6 +221,8 @@ function NoOrganizationPage() {
 
 // ── App ───────────────────────────────────────────────────────
 export default function App() {
+  useServiceWorker()
+
   const [session, setSession] = useState(null)
   const [profile, setProfile] = useState(null)
   const [tenant, setTenant] = useState(null)
