@@ -48,6 +48,7 @@ export default function Configuracoes() {
   /* meus caixas */
   const [registers, setRegisters]       = useState([])
   const hasMultiplePDV                  = registers.filter(r => r.is_active).length >= 2
+  const hasAnyCashRegisters             = registers.length >= 2
   const [regError, setRegError]         = useState('')
   const [regLoading, setRegLoading]     = useState(false)
   const [categories, setCategories]     = useState([])
@@ -606,7 +607,7 @@ export default function Configuracoes() {
       )}
 
       {/* ════ Meus Caixas ════ */}
-      {hasMultiplePDV && (
+      {hasAnyCashRegisters && (
       <Section title="Meus Caixas" icon={Monitor} color={color}>
         <p className="text-xs text-gray-500">
           Visualize e configure os caixas ativos desta organização.
