@@ -20,6 +20,8 @@ import {
   Barcode,
   Receipt,
   History,
+  LayoutGrid,
+  List,
 } from 'lucide-react'
 import { supabase } from '../../../../shared/lib/supabase'
 import { useTenantContext } from '../../../../core/contexts/TenantContext'
@@ -205,6 +207,7 @@ export default function Caixa() {
   const [catSegmentMap, setCatSegmentMap]         = useState({})  // category_id → segment_id
   const [salesOrder, setSalesOrder]               = useState('hoje') // 'hoje' | 'semana'
   const [salesCount, setSalesCount]               = useState({})
+  const [viewMode, setViewMode]                   = useState(() => localStorage.getItem('pdv_view') || 'lista')
 
   const cartItems = cart.reduce((s, i) => s + i.qty, 0)
   const cartTotal = cart.reduce((s, i) => s + itemPrice(i) * i.qty, 0)
@@ -727,21 +730,38 @@ export default function Caixa() {
         </div>
       </div>
 
-      {/* ── period toggle ── */}
-      <div className="px-4 pb-3 flex gap-1.5">
-        {[{ key: 'hoje', label: 'Hoje' }, { key: 'semana', label: 'Semana' }].map(({ key, label }) => (
-          <button
-            key={key}
-            onClick={() => setSalesOrder(key)}
-            className="px-3 py-1.5 rounded-xl text-xs font-bold border transition-all"
-            style={salesOrder === key
-              ? { backgroundColor: '#0891b2', color: 'white', borderColor: '#0891b2' }
-              : { backgroundColor: 'white', color: '#6b7280', borderColor: '#e5e7eb' }
-            }
-          >
-            {label}
-          </button>
-        ))}
+      {/* ── period toggle + view toggle ── */}
+      <div className="px-4 pb-3 flex items-center justify-between">
+        <div className="flex gap-1.5">
+          {[{ key: 'hoje', label: 'Hoje' }, { key: 'semana', label: 'Semana' }].map(({ key, label }) => (
+            <button
+              key={key}
+              onClick={() => setSalesOrder(key)}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold border transition-all"
+              style={salesOrder === key
+                ? { backgroundColor: '#0891b2', color: 'white', borderColor: '#0891b2' }
+                : { backgroundColor: 'white', color: '#6b7280', borderColor: '#e5e7eb' }
+              }
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="flex gap-1">
+          {[{ key: 'lista', Icon: List }, { key: 'cards', Icon: LayoutGrid }].map(({ key, Icon }) => (
+            <button
+              key={key}
+              onClick={() => { setViewMode(key); localStorage.setItem('pdv_view', key) }}
+              className="w-8 h-8 rounded-xl flex items-center justify-center border transition-all"
+              style={viewMode === key
+                ? { backgroundColor: '#0891b2', color: 'white', borderColor: '#0891b2' }
+                : { backgroundColor: 'white', color: '#9ca3af', borderColor: '#e5e7eb' }
+              }
+            >
+              <Icon size={14} />
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* ── product grid ── */}
@@ -767,6 +787,85 @@ export default function Caixa() {
                 Cadastrar produtos
               </button>
             )}
+          </div>
+        ) : viewMode === 'lista' ? (
+          <div className="space-y-2">
+            {sorted.map(product => {
+              const hasVariants = getProductSegment(product) === 'moda' && (variantsByProduct[product.id]?.length > 0)
+              const noStock = hasVariants
+                ? !(variantsByProduct[product.id] || []).some(v => v.stock_quantity > 0)
+                : product.stock_quantity <= 0
+              const lowStock = !hasVariants && !noStock && product.stock_quantity <= product.min_stock_alert
+              const inCart        = !hasVariants ? cart.find(i => i.cartKey === product.id) : null
+              const variantInCart = hasVariants
+                ? cart.filter(i => i.product.id === product.id).reduce((s, i) => s + i.qty, 0)
+                : 0
+
+              return (
+                <div
+                  key={product.id}
+                  className={`bg-white rounded-2xl px-4 py-3 border border-gray-100 shadow-sm flex items-center gap-3 ${noStock ? 'opacity-40' : ''}`}
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-gray-900 leading-snug truncate">{product.name}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-[13px] font-black" style={{ color }}>{brl(product.price)}</span>
+                      {!hasVariants && (
+                        <span className={`text-[10px] font-semibold ${
+                          noStock ? 'text-red-500' : lowStock ? 'text-orange-400' : 'text-gray-400'
+                        }`}>
+                          {noStock ? 'Sem estoque' : `${product.stock_quantity} un.${lowStock ? ' ⚠' : ''}`}
+                        </span>
+                      )}
+                      {hasVariants && (
+                        <span className="text-[10px] font-semibold text-gray-400">
+                          {(variantsByProduct[product.id] || []).reduce((s, v) => s + v.stock_quantity, 0)} un.
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {!hasVariants && (inCart ? (
+                    <div className="flex items-center gap-1 bg-gray-50 rounded-xl px-1 py-0.5 shrink-0">
+                      <button
+                        onClick={() => changeQty(product.id, inCart.qty - 1)}
+                        className="w-8 h-8 rounded-lg bg-white shadow-sm flex items-center justify-center active:scale-90 transition-transform"
+                      >
+                        {inCart.qty === 1 ? <Trash2 size={13} className="text-red-400" /> : <Minus size={13} className="text-gray-600" />}
+                      </button>
+                      <span className="text-sm font-black text-gray-900 w-5 text-center">{inCart.qty}</span>
+                      <button
+                        onClick={() => changeQty(product.id, inCart.qty + 1)}
+                        disabled={inCart.qty >= product.stock_quantity}
+                        className="w-8 h-8 rounded-lg bg-white shadow-sm flex items-center justify-center disabled:opacity-30 active:scale-90 transition-transform"
+                      >
+                        <Plus size={13} className="text-gray-600" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => !noStock && addItem(product)}
+                      disabled={noStock}
+                      className="w-8 h-8 rounded-xl flex items-center justify-center text-white shrink-0 disabled:cursor-not-allowed active:scale-95 transition-transform"
+                      style={{ backgroundColor: noStock ? '#d1d5db' : color }}
+                    >
+                      <Plus size={16} />
+                    </button>
+                  ))}
+
+                  {hasVariants && (
+                    <button
+                      onClick={() => !noStock && setVariantModal({ product, variants: variantsByProduct[product.id] })}
+                      disabled={noStock}
+                      className="px-3 py-1.5 rounded-xl text-white text-xs font-bold shrink-0 disabled:cursor-not-allowed active:scale-95 transition-transform"
+                      style={{ backgroundColor: noStock ? '#d1d5db' : color }}
+                    >
+                      {variantInCart > 0 ? `${variantInCart} ✓` : 'Selecionar'}
+                    </button>
+                  )}
+                </div>
+              )
+            })}
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
