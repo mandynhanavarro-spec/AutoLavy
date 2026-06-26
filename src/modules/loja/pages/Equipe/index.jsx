@@ -159,9 +159,8 @@ export default function Equipe() {
       .from('profiles')
       .select('id, full_name, role, access_status, permissions, template_id')
       .eq('org_id', orgId)
-      .neq('access_status', 'excluido')
       .order('role')
-    setMembers(data || [])
+    setMembers((data || []).filter(m => m.access_status !== 'excluido'))
     setLoading(false)
   }
 
