@@ -82,7 +82,7 @@ export default function Layout({ profile }) {
         className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
           active
             ? 'text-white shadow-sm'
-            : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+            : 'text-white/70 hover:bg-white/10 hover:text-white'
         }`}
         style={active ? { backgroundColor: '#f97316' } : {}}
       >
@@ -100,7 +100,7 @@ export default function Layout({ profile }) {
         to={path}
         className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors"
         style={{
-          color: active ? '#f97316' : '#c4b5fd',
+          color: active ? 'white' : '#c4b5fd',
           backgroundColor: active ? '#f97316' : undefined,
         }}
       >
@@ -116,30 +116,33 @@ export default function Layout({ profile }) {
       {/* ════════════════════════════════════════════════════
           DESKTOP SIDEBAR  (hidden on mobile)
       ════════════════════════════════════════════════════ */}
-      <aside className="hidden md:flex flex-col w-60 bg-white border-r border-gray-200 shrink-0 z-20">
+      <aside
+        className="hidden md:flex flex-col w-60 border-r border-white/10 shrink-0 z-20"
+        style={{ backgroundColor: '#1a2e4a' }}
+      >
 
         {/* Org identity */}
-        <div className="px-4 py-4 border-b border-gray-100">
+        <div className="px-4 py-4 border-b border-white/10">
           <div className="flex items-center gap-3">
             {org?.logo_url ? (
               <img
                 src={org.logo_url}
                 alt={org.name}
-                className="w-10 h-10 rounded-xl object-contain bg-gray-100 p-1 shrink-0"
+                className="w-10 h-10 rounded-xl object-contain bg-white/10 p-1 shrink-0"
               />
             ) : (
               <div
                 className="w-10 h-10 rounded-xl flex items-center justify-center font-black text-white text-base shrink-0"
-                style={{ backgroundColor: '#1a2e4a' }}
+                style={{ backgroundColor: '#f97316' }}
               >
                 {org?.name?.charAt(0) || 'L'}
               </div>
             )}
             <div className="min-w-0">
-              <p className="font-bold text-gray-900 text-sm truncate leading-tight">
+              <p className="font-bold text-white text-sm truncate leading-tight">
                 {org?.name || 'Carregando...'}
               </p>
-              <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mt-0.5">
+              <p className="text-[10px] text-white/60 font-semibold uppercase tracking-wider mt-0.5">
                 {verticalLabel}
               </p>
             </div>
@@ -154,7 +157,7 @@ export default function Layout({ profile }) {
               : <SLink key={i.path} {...i} />
           )}
 
-          <p className="text-[10px] font-bold text-gray-400 px-3 pt-5 pb-1 uppercase tracking-widest">
+          <p className="text-[10px] font-bold text-white/50 px-3 pt-5 pb-1 uppercase tracking-widest">
             Financeiro
           </p>
           {NAV_FINANCEIRO.map(({ module: mod, ...i }) =>
@@ -163,14 +166,14 @@ export default function Layout({ profile }) {
               : <SLink key={i.path} {...i} />
           )}
 
-          <p className="text-[10px] font-bold text-gray-400 px-3 pt-5 pb-1 uppercase tracking-widest">
+          <p className="text-[10px] font-bold text-white/50 px-3 pt-5 pb-1 uppercase tracking-widest">
             Sistema
           </p>
           {NAV_SISTEMA.map(i => <SLink key={i.path} {...i} />)}
 
           {profile?.role === 'superadmin' && (
             <>
-              <p className="text-[10px] font-bold text-gray-400 px-3 pt-5 pb-1 uppercase tracking-widest">
+              <p className="text-[10px] font-bold text-white/50 px-3 pt-5 pb-1 uppercase tracking-widest">
                 Admin
               </p>
               <SLink path="/superadmin" icon={ShieldCheck} label="SuperAdmin" />
@@ -179,10 +182,10 @@ export default function Layout({ profile }) {
         </nav>
 
         {/* Logout */}
-        <div className="p-3 border-t border-gray-100">
+        <div className="p-3 border-t border-white/10">
           <button
             onClick={() => supabase.auth.signOut()}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-gray-500 hover:bg-red-50 hover:text-red-600 transition-colors"
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-white/70 hover:bg-white/10 hover:text-red-400 transition-colors"
           >
             <LogOut size={17} />
             Sair

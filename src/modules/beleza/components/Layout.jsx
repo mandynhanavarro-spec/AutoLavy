@@ -47,9 +47,9 @@ function LayoutInner({ profile }) {
         className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
           active
             ? 'text-white shadow-sm'
-            : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+            : 'text-white/70 hover:bg-white/10 hover:text-white'
         }`}
-        style={active ? { backgroundColor: color } : {}}
+        style={active ? { backgroundColor: '#7c3aed' } : {}}
       >
         <Icon size={17} />
         {label}
@@ -68,30 +68,33 @@ function LayoutInner({ profile }) {
       {/* ════════════════════════════════════════════════════
           DESKTOP SIDEBAR  (hidden on mobile)
       ════════════════════════════════════════════════════ */}
-      <aside className="hidden md:flex flex-col w-60 bg-white border-r border-gray-200 shrink-0 z-20">
+      <aside
+        className="hidden md:flex flex-col w-60 border-r border-white/10 shrink-0 z-20"
+        style={{ backgroundColor: '#1e1b4b' }}
+      >
 
         {/* Org identity */}
-        <div className="px-4 py-4 border-b border-gray-100">
+        <div className="px-4 py-4 border-b border-white/10">
           <div className="flex items-center gap-3">
             {org?.logo_url ? (
               <img
                 src={org.logo_url}
                 alt={org.name}
-                className="w-10 h-10 rounded-xl object-contain bg-gray-100 p-1 shrink-0"
+                className="w-10 h-10 rounded-xl object-contain bg-white/10 p-1 shrink-0"
               />
             ) : (
               <div
                 className="w-10 h-10 rounded-xl flex items-center justify-center font-black text-white text-base shrink-0"
-                style={{ backgroundColor: color }}
+                style={{ backgroundColor: '#7c3aed' }}
               >
                 {org?.name?.charAt(0) || 'M'}
               </div>
             )}
             <div className="min-w-0">
-              <p className="font-bold text-gray-900 text-sm truncate leading-tight">
+              <p className="font-bold text-white text-sm truncate leading-tight">
                 {org?.name || 'Carregando...'}
               </p>
-              <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mt-0.5">
+              <p className="text-[10px] text-white/60 font-semibold uppercase tracking-wider mt-0.5">
                 Meu Studio
               </p>
             </div>
@@ -104,17 +107,17 @@ function LayoutInner({ profile }) {
             <SLink key={item.path} {...item} badge={item.path === '/alertas' ? alertClients.length : 0} />
           ))}
 
-          <p className="text-[10px] font-bold text-gray-400 px-3 pt-5 pb-1 uppercase tracking-widest">
+          <p className="text-[10px] font-bold text-white/50 px-3 pt-5 pb-1 uppercase tracking-widest">
             Sistema
           </p>
           <SLink path="/configuracoes" icon={Settings} label="Configurações" />
         </nav>
 
         {/* Logout */}
-        <div className="p-3 border-t border-gray-100">
+        <div className="p-3 border-t border-white/10">
           <button
             onClick={() => supabase.auth.signOut()}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-gray-500 hover:bg-red-50 hover:text-red-600 transition-colors"
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-white/70 hover:bg-white/10 hover:text-red-400 transition-colors"
           >
             <LogOut size={17} />
             Sair
@@ -172,7 +175,10 @@ function LayoutInner({ profile }) {
         </main>
 
         {/* Mobile bottom nav */}
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 flex justify-around items-center h-16 z-10">
+        <nav
+          className="md:hidden fixed bottom-0 left-0 right-0 flex justify-around items-center h-16 z-10"
+          style={{ backgroundColor: '#1e1b4b' }}
+        >
           {NAV_BOTTOM.map(({ path, icon: Icon, label }) => {
             const active = location.pathname === path ||
               (path === '/clientes' && location.pathname.startsWith('/clientes'))
@@ -181,10 +187,8 @@ function LayoutInner({ profile }) {
               <Link
                 key={path}
                 to={path}
-                className={`flex flex-col items-center justify-center w-full h-full transition-all duration-200 ${
-                  active ? 'scale-110' : 'text-gray-400'
-                }`}
-                style={{ color: active ? color : undefined }}
+                className="flex flex-col items-center justify-center w-full h-full transition-all duration-200"
+                style={{ color: active ? '#a78bfa' : 'rgba(124,58,237,0.6)' }}
               >
                 <div className="relative">
                   <Icon size={22} />
