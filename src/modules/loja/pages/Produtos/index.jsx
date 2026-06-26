@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Pencil, Trash2, X, Package, AlertTriangle, FlaskConical, Lock, Tag } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, Package, AlertTriangle, FlaskConical, Lock, Tag, LayoutGrid, List } from 'lucide-react'
 import { supabase } from '../../../../shared/lib/supabase'
 import { useTenantContext } from '../../../../core/contexts/TenantContext'
 import { usePermissions } from '../../../../core/hooks/usePermissions'
@@ -402,6 +402,7 @@ export default function Produtos() {
   const [deleting, setDeleting] = useState(null)
   const [seeding, setSeeding]   = useState(false)
   const [search, setSearch]     = useState('')
+  const [viewMode, setViewMode] = useState(() => localStorage.getItem('produtos_view_mode') || 'cards')
 
   /* segment-specific state */
   const [gradeConfig, setGradeConfig]       = useState(null)
@@ -794,6 +795,32 @@ export default function Produtos() {
         </div>
       )}
 
+      {/* View mode toggle */}
+      {products.length > 0 && (
+        <div className="mb-3 flex gap-1.5">
+          {[
+            { mode: 'cards', icon: LayoutGrid, label: 'Cards' },
+            { mode: 'lista', icon: List,        label: 'Lista'  },
+          ].map(({ mode, icon: Icon, label }) => {
+            const active = viewMode === mode
+            return (
+              <button
+                key={mode}
+                onClick={() => { setViewMode(mode); localStorage.setItem('produtos_view_mode', mode) }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border"
+                style={active
+                  ? { backgroundColor: '#0891b2', color: 'white', borderColor: '#0891b2' }
+                  : { backgroundColor: 'white',   color: '#6b7280', borderColor: '#e5e7eb' }
+                }
+              >
+                <Icon size={13} style={{ color: active ? 'white' : '#9ca3af' }} />
+                {label}
+              </button>
+            )
+          })}
+        </div>
+      )}
+
       {/* Demo warning banner */}
       {hasDemos && (
         <div className="mb-4 flex items-center gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-2xl">
@@ -848,6 +875,7 @@ export default function Produtos() {
         <p className="text-center text-sm text-gray-400 py-10">Nenhum produto encontrado.</p>
       ) : (
         <>
+          {viewMode === 'cards' ? (<>
           {/* Desktop table header */}
           <div className="hidden sm:grid grid-cols-[1fr_110px_90px_70px_72px] gap-2 px-4 py-1.5 text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1">
             <span>Produto</span>
@@ -953,6 +981,45 @@ export default function Produtos() {
               )
             })}
           </div>
+          </>) : (
+            <div>
+              <div className="grid grid-cols-[1fr_80px_70px_32px] gap-2 px-2 py-1 mb-1 text-[9px] font-bold text-gray-400 uppercase tracking-wide">
+                <span>Nome</span>
+                <span className="text-right">Preço</span>
+                <span className="text-right">Estoque</span>
+                <span />
+              </div>
+              {filtered.map(p => {
+                const low = p.stock_quantity > 0 && p.stock_quantity <= p.min_stock_alert
+                const out = p.stock_quantity <= 0
+                return (
+                  <div
+                    key={p.id}
+                    className="grid grid-cols-[1fr_80px_70px_32px] gap-2 items-center bg-white"
+                    style={{ borderRadius: '6px', border: '0.5px solid #e5e7eb', padding: '6px 8px', marginBottom: '3px', fontSize: '11px' }}
+                  >
+                    <span className="font-semibold text-gray-900 truncate">{p.name}</span>
+                    <span className="text-right font-bold" style={{ color: '#0891b2' }}>{brl(p.price)}</span>
+                    <span className={`text-right font-semibold ${out ? 'text-red-500' : low ? 'text-amber-500' : 'text-green-600'}`}>
+                      {p.stock_quantity} un.
+                    </span>
+                    <div className="flex justify-end">
+                      {canManage ? (
+                        <button
+                          onClick={() => openEdit(p)}
+                          className="w-6 h-6 rounded-lg bg-gray-50 hover:bg-blue-50 flex items-center justify-center transition-colors group"
+                        >
+                          <Pencil size={11} className="text-gray-400 group-hover:text-blue-600" />
+                        </button>
+                      ) : (
+                        <Lock size={11} className="text-gray-300" />
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
 
           {/* Seed button when products exist but no demos */}
           {!hasDemos && (
