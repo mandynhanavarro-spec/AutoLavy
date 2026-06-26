@@ -451,7 +451,7 @@ export default function App() {
             element={
               session && !VerticalLayout
                 ? <VerticalEmConstrucao productId={productId} />
-                : <Navigate to={session ? '/' : '/login'} replace />
+                : <Navigate to={session ? (sessionStorage.getItem('last_route') || '/') : '/login'} replace />
             }
           />
         </Routes>
