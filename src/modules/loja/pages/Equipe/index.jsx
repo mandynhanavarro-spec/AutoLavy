@@ -203,7 +203,7 @@ export default function Equipe() {
     setEmpError('')
     setEmpLoading(true)
     const { data, error } = await supabase.functions.invoke('create-employee', {
-      body: { name: empName.trim(), handle, role: empRole, password: empPass, orgId, permissions: empPerms },
+      body: { full_name: empName.trim(), email: handle, role: empRole, password: empPass, org_id: orgId, permissions: empPerms },
     })
     setEmpLoading(false)
 
