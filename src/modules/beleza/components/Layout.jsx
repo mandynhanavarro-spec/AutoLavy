@@ -133,7 +133,7 @@ function LayoutInner({ profile }) {
         {/* Mobile header */}
         <header
           className="md:hidden h-14 px-4 flex items-center justify-between text-white shadow-md shrink-0"
-          style={{ backgroundColor: color }}
+          style={{ backgroundColor: '#1e1b4b' }}
         >
           <div className="flex items-center gap-2 min-w-0">
             {org?.logo_url ? (
