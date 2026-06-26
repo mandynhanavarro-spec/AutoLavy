@@ -4,7 +4,7 @@ import {
   BadgeDollarSign, Building2, CheckCircle2, Clock, Copy, CreditCard,
   ExternalLink, FileText, KeyRound, LayoutDashboard, Lock,
   LogOut, Monitor, Plus, Search, Settings2, Shield, Trash2,
-  WalletCards, X, Users, Pencil,
+  WalletCards, X, Users, Pencil, Eye, EyeOff,
 } from 'lucide-react'
 import { supabase } from '../../shared/lib/supabase'
 import { LogoAutoLavy } from '../../shared/components/Logo'
@@ -213,6 +213,18 @@ function ChartTooltip({ active, payload, label }) {
 /* ── main component ─────────────────────────────────────────── */
 
 export default function SuperAdminDashboard() {
+  const [valuesHidden, setValuesHidden] = useState(
+    () => localStorage.getItem('superadmin_values_hidden') === 'true'
+  )
+
+  function toggleValues() {
+    setValuesHidden(v => {
+      const next = !v
+      localStorage.setItem('superadmin_values_hidden', next)
+      return next
+    })
+  }
+
   const [clientModalMode, setClientModalMode] = useState('create')
   const [editingOrganizationId, setEditingOrganizationId] = useState(null)
   const [editingInviteId, setEditingInviteId] = useState(null)
@@ -966,7 +978,7 @@ export default function SuperAdminDashboard() {
     { label: 'Total Clientes', value: summary.totalCustomers, icon: Building2, color: '#6366f1', bg: '#eef2ff', change: null },
     { label: 'Ativos', value: summary.activeCustomers, icon: CheckCircle2, color: '#10b981', bg: '#ecfdf5', change: null },
     { label: 'Suspensos', value: summary.suspendedCustomers, icon: Lock, color: '#f59e0b', bg: '#fffbeb', change: null },
-    { label: 'Receita Mensal', value: `R$ ${summary.monthlyRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, icon: BadgeDollarSign, color: '#ec4899', bg: '#fdf2f8', change: revenueChange },
+    { label: 'Receita Mensal', value: `R$ ${summary.monthlyRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, icon: BadgeDollarSign, color: '#ec4899', bg: '#fdf2f8', change: revenueChange, isMoney: true },
     { label: 'Planos Ativos', value: summary.activePlans, icon: WalletCards, color: '#8b5cf6', bg: '#f5f3ff', change: null },
   ]
 
@@ -1147,21 +1159,48 @@ export default function SuperAdminDashboard() {
           {/* ── DASHBOARD ── */}
           {activeTab === 'dashboard' && (
             <>
+              {/* metric cards header */}
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Métricas</p>
+                <button
+                  onClick={toggleValues}
+                  className="flex items-center gap-1 bg-white border font-semibold"
+                  style={{ borderColor: '#e5e7eb', borderRadius: '6px', padding: '3px 8px', color: '#9ca3af', fontSize: '11px' }}
+                >
+                  {valuesHidden
+                    ? <><EyeOff size={11} style={{ color: '#9ca3af' }} />&nbsp;Mostrar</>
+                    : <><Eye    size={11} style={{ color: '#9ca3af' }} />&nbsp;Ocultar</>
+                  }
+                </button>
+              </div>
+
               {/* metric cards */}
               <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-                {metricCards.map(({ label, value, icon: Icon, color, bg, change }, i) => (
+                {metricCards.map(({ label, value, icon: Icon, color, bg, change, isMoney }, i) => (
                   <div key={i} className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
                     <div className="flex items-start justify-between mb-3">
                       <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: bg }}>
                         <Icon size={18} style={{ color }} />
                       </div>
                       {change !== null && change !== undefined && (
-                        <span className={`text-[10px] font-black px-2 py-1 rounded-lg ${change >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                        <span
+                          className={`text-[10px] font-black px-2 py-1 rounded-lg ${change >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}
+                          style={isMoney && valuesHidden ? { opacity: 0 } : {}}
+                        >
                           {change >= 0 ? '+' : ''}{change}%
                         </span>
                       )}
                     </div>
-                    <p className="text-xl font-black text-gray-900 leading-none">{value}</p>
+                    <p
+                      className="text-xl font-black leading-none"
+                      style={
+                        isMoney && valuesHidden
+                          ? { color: '#d1d5db', letterSpacing: '3px' }
+                          : { color: '#111827' }
+                      }
+                    >
+                      {isMoney && valuesHidden ? '••••' : value}
+                    </p>
                     <p className="text-[11px] text-gray-400 font-bold uppercase tracking-wide mt-1">{label}</p>
                   </div>
                 ))}
