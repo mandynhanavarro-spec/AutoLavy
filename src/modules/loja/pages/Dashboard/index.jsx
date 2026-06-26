@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, Navigate } from 'react-router-dom'
-import { ShoppingCart, TrendingUp, CreditCard, Package, AlertTriangle } from 'lucide-react'
+import { ShoppingCart, TrendingUp, CreditCard, Package, AlertTriangle, Eye, EyeOff } from 'lucide-react'
 import { supabase } from '../../../../shared/lib/supabase'
 import { useTenantContext } from '../../../../core/contexts/TenantContext'
 
@@ -38,6 +38,18 @@ export default function Dashboard() {
 
   const orgId      = tenant?.id
   const themeColor = '#0891b2'
+
+  const [valuesHidden, setValuesHidden] = useState(
+    () => localStorage.getItem('dashboard_values_hidden') === 'true'
+  )
+
+  function toggleValues() {
+    setValuesHidden(v => {
+      const next = !v
+      localStorage.setItem('dashboard_values_hidden', next)
+      return next
+    })
+  }
 
   useEffect(() => {
     if (!orgId) return
@@ -174,8 +186,23 @@ export default function Dashboard() {
         </button>
       </div>
 
+      {/* Metrics section header */}
+      <div className="px-4 mt-4 flex items-center justify-between mb-2">
+        <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Resumo do dia</p>
+        <button
+          onClick={toggleValues}
+          className="flex items-center gap-1 bg-white border font-semibold"
+          style={{ borderColor: '#e5e7eb', borderRadius: '6px', padding: '3px 8px', color: '#9ca3af', fontSize: '11px' }}
+        >
+          {valuesHidden
+            ? <><EyeOff size={11} style={{ color: '#9ca3af' }} />&nbsp;Mostrar</>
+            : <><Eye    size={11} style={{ color: '#9ca3af' }} />&nbsp;Ocultar</>
+          }
+        </button>
+      </div>
+
       {/* Metric cards */}
-      <div className="px-4 mt-3 grid grid-cols-2 gap-3">
+      <div className="px-4 grid grid-cols-2 gap-3">
         {cards.map((card) => {
           const Icon     = card.icon
           const positive = (card.delta ?? 0) >= 0
@@ -187,13 +214,25 @@ export default function Dashboard() {
                   <Icon size={13} color="white" />
                 </div>
               </div>
-              <p className="text-xl font-black text-gray-900">{card.value}</p>
+              <p
+                className="text-xl font-black"
+                style={
+                  !card.isAlert && valuesHidden
+                    ? { color: '#d1d5db', letterSpacing: '3px' }
+                    : { color: '#111827' }
+                }
+              >
+                {!card.isAlert && valuesHidden ? '••••' : card.value}
+              </p>
               {card.isAlert ? (
                 lowStock > 0
                   ? <p className="text-[11px] mt-1 font-semibold text-orange-500 flex items-center gap-1"><AlertTriangle size={10} /> Atenção necessária</p>
                   : <p className="text-[11px] mt-1 text-gray-400">Tudo em ordem</p>
               ) : (
-                <p className={`text-[11px] mt-1 font-semibold ${positive ? 'text-emerald-600' : 'text-red-500'}`}>
+                <p
+                  className={`text-[11px] mt-1 font-semibold ${positive ? 'text-emerald-600' : 'text-red-500'}`}
+                  style={valuesHidden ? { opacity: 0 } : {}}
+                >
                   {positive ? '+' : ''}{card.delta}% vs ontem
                 </p>
               )}
