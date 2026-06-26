@@ -4,7 +4,7 @@ import { useRegisterSW } from 'virtual:pwa-register/react'
 export function useServiceWorker() {
   const { needRefresh, updateServiceWorker } = useRegisterSW({
     onRegistered(r) {
-      r && setInterval(() => r.update(), 5 * 60 * 1000)
+      r && setInterval(() => r.update(), 60 * 1000)
     },
   })
 
