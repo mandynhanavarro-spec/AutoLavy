@@ -19,7 +19,7 @@ import {
   ChevronRight,
   Barcode,
   Receipt,
-  ArrowLeftRight,
+  History,
 } from 'lucide-react'
 import { supabase } from '../../../../shared/lib/supabase'
 import { useTenantContext } from '../../../../core/contexts/TenantContext'
@@ -676,12 +676,12 @@ export default function Caixa() {
         </button>
 
         <button
-          onClick={() => openMov('sangria')}
+          onClick={() => navigate('/historico')}
           className="flex flex-col items-center justify-center gap-1.5 rounded-[10px] p-3 bg-white border"
           style={{ borderColor: '#e5e7eb' }}
         >
-          <ArrowLeftRight size={22} style={{ color: '#0891b2' }} />
-          <span className="text-[10px] font-bold text-gray-700">Sangria / Reforço</span>
+          <History size={22} style={{ color: '#0891b2' }} />
+          <span className="text-[10px] font-bold text-gray-700">Histórico</span>
         </button>
       </div>
 
