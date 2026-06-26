@@ -141,7 +141,7 @@ export default function Equipe() {
     setLoading(true)
     const { data } = await supabase
       .from('profiles')
-      .select('id, full_name, role, access_status, permissions')
+      .select('id, full_name, role, access_status, permissions, template_id, role_templates(id, name)')
       .eq('org_id', orgId)
       .order('role')
     setMembers(data || [])
@@ -209,6 +209,10 @@ export default function Equipe() {
 
     if (error || data?.error) { setEmpError(parseInvokeError(data, error)); return }
 
+    if (empTemplate && data.userId) {
+      await supabase.from('profiles').update({ template_id: empTemplate }).eq('id', data.userId)
+    }
+
     setEmpDone({ email: data.email, password: empPass })
     load()
   }
@@ -218,7 +222,7 @@ export default function Equipe() {
     setEditTarget(member)
     setEditRole(member.role)
     setEditPerms({ ...DEFAULT_PERMISSIONS, ...(member.permissions || {}) })
-    setEditTemplate('')
+    setEditTemplate(member.template_id || '')
     setEditError('')
   }
 
@@ -228,12 +232,15 @@ export default function Equipe() {
     setEditSaving(true)
     const { error } = await supabase
       .from('profiles')
-      .update({ role: editRole, permissions: editPerms })
+      .update({ role: editRole, permissions: editPerms, template_id: editTemplate || null })
       .eq('id', editTarget.id)
       .eq('org_id', orgId)
     setEditSaving(false)
     if (error) { setEditError(error.message); return }
-    setMembers(prev => prev.map(m => m.id === editTarget.id ? { ...m, role: editRole, permissions: editPerms } : m))
+    const tpl = editTemplate ? templates.find(t => t.id === editTemplate) : null
+    setMembers(prev => prev.map(m => m.id === editTarget.id
+      ? { ...m, role: editRole, permissions: editPerms, template_id: editTemplate || null, role_templates: tpl ? { id: tpl.id, name: tpl.name } : null }
+      : m))
     setEditTarget(null)
   }
 
@@ -357,26 +364,11 @@ export default function Equipe() {
                     )}
                   </div>
 
-                  {/* Role */}
+                  {/* Cargo */}
                   <div className="mt-1.5">
-                    {isSelf || isSA ? (
-                      <span className={`inline-flex text-[10px] font-bold px-2 py-0.5 rounded-lg ${ROLE_STYLE[m.role] || ROLE_STYLE.operador}`}>
-                        {ROLE_LABEL[m.role] || m.role}
-                      </span>
-                    ) : (
-                      <div className="relative inline-flex">
-                        <select
-                          value={m.role}
-                          disabled={updatingRole === m.id}
-                          onChange={e => updateRole(m.id, e.target.value)}
-                          className={`appearance-none text-[10px] font-bold pl-2 pr-6 py-0.5 rounded-lg cursor-pointer outline-none disabled:cursor-wait ${ROLE_STYLE[m.role] || ROLE_STYLE.operador}`}
-                          style={{ backgroundImage: 'none' }}
-                        >
-                          {ROLES.map(r => <option key={r.key} value={r.key}>{r.label}</option>)}
-                        </select>
-                        <ChevronDown size={10} className="absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none opacity-60" />
-                      </div>
-                    )}
+                    <span className={`inline-flex text-[10px] font-bold px-2 py-0.5 rounded-lg ${ROLE_STYLE[m.role] || ROLE_STYLE.operador}`}>
+                      {m.role_templates?.name || ROLE_LABEL[m.role] || m.role}
+                    </span>
                   </div>
                 </div>
 
