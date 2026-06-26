@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { BrowserRouter as Router, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { TenantProvider } from './core/contexts/TenantContext'
 import Register from './core/pages/Register'
@@ -248,6 +248,7 @@ export default function App() {
   const [tenant, setTenant] = useState(null)
   const [modules, setModules] = useState([])
   const [loading, setLoading] = useState(true)
+  const currentUserIdRef = useRef(null)
 
   useEffect(() => {
     let mounted = true
@@ -319,6 +320,7 @@ export default function App() {
       }
 
       if (!mounted) return
+      currentUserIdRef.current = currentSession?.user?.id || null
       setProfile(loadedProfile || null)
       setTenant(loadedTenant)
       setModules(loadedModules)
@@ -337,12 +339,10 @@ export default function App() {
       if (!mounted) return
       console.log('[AUTH EVENT]', event, new Date().toISOString())
 
-      const previousUserId = session?.user?.id
-      const nextUserId     = nextSession?.user?.id
-
       setSession(nextSession)
 
       if (event === 'SIGNED_OUT') {
+        currentUserIdRef.current = null
         loadUserContext(nextSession)
         return
       }
@@ -352,13 +352,17 @@ export default function App() {
         return
       }
 
-      if (event === 'SIGNED_IN' && nextUserId !== previousUserId) {
-        loadUserContext(nextSession)
+      if (event === 'SIGNED_IN') {
+        const nextUserId = nextSession?.user?.id
+        if (nextUserId && nextUserId !== currentUserIdRef.current) {
+          loadUserContext(nextSession)
+          return
+        }
+        console.log('[AUTH] SIGNED_IN ignorado — mesmo usuário')
         return
       }
 
-      // SIGNED_IN com mesmo usuário, TOKEN_REFRESHED e outros → ignora
-      console.log('[AUTH] ignorado — mesmo usuário ou evento não relevante:', event)
+      console.log('[AUTH] ignorado:', event)
     })
 
     return () => {
