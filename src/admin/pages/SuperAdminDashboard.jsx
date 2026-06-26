@@ -1340,65 +1340,73 @@ export default function SuperAdminDashboard() {
 
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[700px]">
+                  <table className="w-full min-w-[800px]">
                     <thead style={{ background: '#f8f7ff' }}>
                       <tr className="text-left text-[10px] uppercase tracking-widest text-gray-400 font-black">
-                        {['Empresa','Responsável','Vertical','Plano','Status','Pagamento','Ações'].map(h => (
-                          <th key={h} className="px-5 py-4">{h}</th>
+                        {['Status','Empresa','Responsável','Vertical','Segmento','Plano','Pagamento','Ações'].map(h => (
+                          <th key={h} className="px-3 py-3">{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredCustomers.map(c => (
+                      {filteredCustomers.map(c => {
+                        const orgSegs = orgSegmentsMap[c.id] || []
+                        return (
                         <tr key={c.id} className="border-t border-gray-50 text-sm hover:bg-gray-50/50 transition-colors">
-                          <td className="px-5 py-3.5">
-                            <div className="flex items-center gap-3">
+                          {/* Status */}
+                          <td className="px-3 py-3"><StatusBadge value={c.customer_status} /></td>
+                          {/* Empresa */}
+                          <td className="px-3 py-3">
+                            <div className="flex items-center gap-2">
                               <Avatar name={c.name} />
                               <div>
-                                <span className="font-bold text-gray-900 block">{c.name}</span>
+                                <span className="font-bold text-gray-900 block text-xs">{c.name}</span>
                                 {!(c.name && c.contact_email && orgsWithRegisters.has(c.id)) && (
                                   <span className="inline-block text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full mt-0.5">
-                                    Onboarding incompleto
+                                    Incompleto
                                   </span>
                                 )}
                               </div>
                             </div>
                           </td>
-                          <td className="px-5 py-3.5 text-gray-500">{c.responsible_name || '-'}</td>
-                          <td className="px-5 py-3.5">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <VerticalBadge value={c.product_id} />
-                              {c.product_id === 'loja' && (
-                                (orgSegmentsMap[c.id]?.length > 0
-                                  ? orgSegmentsMap[c.id].map((sid, idx) =>
-                                      segmentsById[sid]
-                                        ? <SegmentBadge key={sid} label={segmentsById[sid].name} colorIdx={idx} />
-                                        : null)
-                                  : <SegmentBadge value={c.segment} />
-                                )
-                              )}
-                            </div>
+                          {/* Responsável */}
+                          <td className="px-3 py-3 text-gray-500 text-xs">{c.responsible_name || '-'}</td>
+                          {/* Vertical */}
+                          <td className="px-3 py-3"><VerticalBadge value={c.product_id} /></td>
+                          {/* Segmento */}
+                          <td className="px-3 py-3">
+                            {orgSegs.length > 0
+                              ? <div className="flex gap-1 flex-wrap">
+                                  {orgSegs.map((sid, idx) =>
+                                    segmentsById[sid]
+                                      ? <SegmentBadge key={sid} label={segmentsById[sid].name} colorIdx={idx} />
+                                      : null
+                                  )}
+                                </div>
+                              : c.segment
+                                ? <SegmentBadge value={c.segment} />
+                                : <span className="text-gray-400 text-xs">-</span>
+                            }
                           </td>
-                          <td className="px-5 py-3.5">
-                            <span className="text-xs font-bold text-violet-600 bg-violet-50 px-2.5 py-1 rounded-lg">{c.planName}</span>
+                          {/* Plano */}
+                          <td className="px-3 py-3">
+                            <span className="text-[10px] font-bold text-violet-600 bg-violet-50 px-2 py-0.5 rounded-lg">{c.planName}</span>
                           </td>
-                          <td className="px-5 py-3.5"><StatusBadge value={c.customer_status} /></td>
-                          <td className="px-5 py-3.5"><StatusBadge value={c.paymentStatus} /></td>
-                          <td className="px-5 py-3.5">
+                          {/* Pagamento */}
+                          <td className="px-3 py-3"><StatusBadge value={c.paymentStatus} /></td>
+                          {/* Ações */}
+                          <td className="px-3 py-3">
                             <div className="flex items-center gap-1.5">
-                              {/* Onboarding */}
                               <button type="button" onClick={() => setOnboardingOrg(c)}
                                 title={c.name && c.contact_email && orgsWithRegisters.has(c.id) ? 'Reabrir Onboarding' : 'Continuar Onboarding'}
                                 className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors hover:brightness-95"
                                 style={{ backgroundColor: '#ede9fe' }}>
                                 <RefreshCw size={15} style={{ color: '#6d28d9' }} />
                               </button>
-                              {/* Editar */}
                               <button type="button" onClick={() => openEditOrganizationModal(c)} title="Editar cliente"
                                 className="w-9 h-9 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors">
                                 <Pencil size={15} className="text-gray-500" />
                               </button>
-                              {/* Suspender / Reativar */}
                               <button type="button" disabled={isActionRunning(`toggle-customer-${c.id}`)}
                                 onClick={() => handleToggleCustomerStatus(c)}
                                 title={c.customer_status === 'suspenso' ? 'Reativar' : 'Suspender'}
@@ -1409,13 +1417,11 @@ export default function SuperAdminDashboard() {
                                   : <PauseCircle size={15} style={{ color: '#92400e' }} />
                                 }
                               </button>
-                              {/* Acessar como */}
                               <button type="button" onClick={() => enterSupportMode(c)} title="Acessar como cliente (suporte)"
                                 className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors hover:brightness-95"
                                 style={{ backgroundColor: '#dbeafe' }}>
                                 <LogIn size={15} style={{ color: '#1d4ed8' }} />
                               </button>
-                              {/* Excluir */}
                               <button type="button" onClick={() => { setDeleteTarget(c); setDeletePassword(''); setDeleteError('') }}
                                 title="Excluir cliente"
                                 className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors hover:brightness-95"
@@ -1425,9 +1431,10 @@ export default function SuperAdminDashboard() {
                             </div>
                           </td>
                         </tr>
-                      ))}
+                        )
+                      })}
                       {!loading && filteredCustomers.length === 0 && (
-                        <tr><td colSpan="10" className="px-5 py-10 text-center text-sm text-gray-400">Nenhum cliente encontrado.</td></tr>
+                        <tr><td colSpan="8" className="px-3 py-10 text-center text-sm text-gray-400">Nenhum cliente encontrado.</td></tr>
                       )}
                     </tbody>
                   </table>
