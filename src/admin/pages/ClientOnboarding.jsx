@@ -121,7 +121,6 @@ export default function ClientOnboarding({ org, isNew = false, plans = [], segme
     vertical:         org?.product_id       || 'loja',
     plan_id:          org?.plan_id          || plans[0]?.id || '',
     segments:         [],
-    theme_color:      org?.theme_color      || '#3b82f6',
   })
   const [savingStore, setSavingStore] = useState(false)
   const [storeError, setStoreError]   = useState('')
@@ -329,7 +328,6 @@ export default function ClientOnboarding({ org, isNew = false, plans = [], segme
             phone:            showPhoneField ? (storeForm.phone.trim() || null) : null,
             address:          storeForm.address.trim()  || null,
             contact_email:    storeForm.login_email.trim().toLowerCase(),
-            theme_color:      storeForm.theme_color,
             plan_id:          storeForm.plan_id || null,
             product_id:       storeForm.vertical,
             segment:          storeForm.segments[0] || 'geral',
@@ -384,7 +382,6 @@ export default function ClientOnboarding({ org, isNew = false, plans = [], segme
         const oid = createdOrg?.id || orgId
         const { error } = await supabase.from('organizations').update({
           contact_email: storeForm.login_email.trim().toLowerCase() || null,
-          theme_color:   storeForm.theme_color,
           plan_id:       storeForm.plan_id || null,
           product_id:    storeForm.vertical,
           segment:       storeForm.segments[0] || 'geral',
@@ -910,23 +907,6 @@ Qualquer dúvida estou aqui! 😊`
                     </div>
                   )}
 
-                  {/* Cor do tema */}
-                  <div className="sm:col-span-2">
-                    <label className="text-[11px] font-bold text-gray-400 uppercase block mb-1.5">Cor do tema</label>
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="color"
-                        value={storeForm.theme_color}
-                        onChange={e => setStoreForm(f => ({ ...f, theme_color: e.target.value }))}
-                        className="w-12 h-12 rounded-xl border-2 border-gray-200 cursor-pointer p-1 bg-white"
-                      />
-                      <div>
-                        <p className="text-sm font-black text-gray-800 uppercase">{storeForm.theme_color}</p>
-                        <p className="text-[10px] text-gray-400">Cor do app do cliente</p>
-                      </div>
-                      <div className="w-10 h-10 rounded-xl shrink-0" style={{ backgroundColor: storeForm.theme_color }} />
-                    </div>
-                  </div>
                 </div>
 
                 {storeError && (
