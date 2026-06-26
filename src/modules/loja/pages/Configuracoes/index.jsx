@@ -54,7 +54,8 @@ export default function Configuracoes() {
   const [regEditId, setRegEditId]       = useState(null)
   const [regEditName, setRegEditName]   = useState('')
   const [regFilterId, setRegFilterId]   = useState(null)
-  const [regSaving, setRegSaving]       = useState(false)
+  const [regSaving, setRegSaving]           = useState(false)
+  const [togglingRegister, setTogglingRegister] = useState(null)
   const [addRegOpen, setAddRegOpen]     = useState(false)
   const [addRegName, setAddRegName]     = useState('')
   const [addRegDesc, setAddRegDesc]     = useState('')
@@ -65,14 +66,13 @@ export default function Configuracoes() {
     if (!orgId) return
     setRegLoading(true)
     setRegError('')
-    console.log('[loadRegisters] orgId =', orgId)
-    const { data, error } = await supabase.rpc('get_my_registers')
-    console.log('[loadRegisters] data =', data, '| error =', error)
+    const { data, error } = await supabase
+      .from('cash_registers')
+      .select('id, name, description, is_active, product_filter')
+      .eq('org_id', orgId)
+      .order('name')
     setRegLoading(false)
-    if (error) {
-      setRegError(`RPC error ${error.code}: ${error.message}`)
-      return
-    }
+    if (error) { setRegError(error.message); return }
     setRegisters(data || [])
   }
 
@@ -132,6 +132,17 @@ export default function Configuracoes() {
     setAddRegOpen(false)
     setAddRegName('')
     setAddRegDesc('')
+    loadRegisters()
+  }
+
+  async function toggleRegisterActive(reg) {
+    setTogglingRegister(reg.id)
+    await supabase
+      .from('cash_registers')
+      .update({ is_active: !reg.is_active })
+      .eq('id', reg.id)
+      .eq('org_id', orgId)
+    setTogglingRegister(null)
     loadRegisters()
   }
 
@@ -626,7 +637,7 @@ export default function Configuracoes() {
               const activeIds       = reg.product_filter?.category_ids || null
               const allSelected     = !activeIds
               return (
-                <div key={reg.id} className="bg-gray-50 rounded-2xl overflow-hidden">
+                <div key={reg.id} className={`bg-gray-50 rounded-2xl overflow-hidden${!reg.is_active ? ' opacity-50' : ''}`}>
                   {/* row */}
                   <div className="flex items-center gap-3 px-4 py-3">
                     <div
@@ -671,7 +682,7 @@ export default function Configuracoes() {
                     </div>
 
                     <span className={`text-[10px] font-black px-2 py-0.5 rounded-full shrink-0 ${reg.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-500'}`}>
-                      {reg.is_active ? 'Ativo' : 'Inativo'}
+                      {reg.is_active ? 'Ativo' : 'Oculto'}
                     </span>
 
                     {isAdmin && !isEditingName && (
@@ -691,6 +702,14 @@ export default function Configuracoes() {
                             Categorias
                           </button>
                         )}
+                        <button
+                          onClick={() => toggleRegisterActive(reg)}
+                          disabled={togglingRegister === reg.id}
+                          title={reg.is_active ? 'Ocultar caixa' : 'Mostrar caixa'}
+                          className="px-2 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-500 transition-colors disabled:opacity-40 flex items-center"
+                        >
+                          {reg.is_active ? <EyeOff size={13} /> : <Eye size={13} />}
+                        </button>
                       </div>
                     )}
                   </div>
