@@ -456,7 +456,7 @@ export default function Equipe() {
                 </div>
 
                 <div>
-                  <label className="text-[11px] font-bold text-gray-400 mb-1.5 block uppercase tracking-wide">Função / Template</label>
+                  <label className="text-[11px] font-bold text-gray-400 mb-1.5 block uppercase tracking-wide">Cargo</label>
                   <select
                     value={empTemplate}
                     onChange={e => {
@@ -471,28 +471,11 @@ export default function Equipe() {
                     }}
                     className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:ring-2 focus:ring-blue-500 mb-2"
                   >
-                    <option value="">Selecionar template...</option>
+                    <option value="">Selecionar cargo...</option>
                     {templates.map(t => (
                       <option key={t.id} value={t.id}>{t.name}{t.is_default ? ' ★' : ''}</option>
                     ))}
                   </select>
-                  <div className="flex gap-2">
-                    {ROLES.map(r => (
-                      <button
-                        key={r.key}
-                        type="button"
-                        onClick={() => setEmpRole(r.key)}
-                        className={`flex-1 py-2.5 rounded-xl text-xs font-bold border transition-all ${
-                          empRole === r.key
-                            ? 'text-white border-transparent'
-                            : 'text-gray-500 border-gray-200 bg-gray-50 hover:bg-gray-100'
-                        }`}
-                        style={empRole === r.key ? { backgroundColor: color } : {}}
-                      >
-                        {r.label}
-                      </button>
-                    ))}
-                  </div>
                 </div>
 
                 <div>
