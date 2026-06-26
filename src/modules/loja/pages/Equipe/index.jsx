@@ -141,7 +141,7 @@ export default function Equipe() {
     setLoading(true)
     const { data } = await supabase
       .from('profiles')
-      .select('id, full_name, role, access_status, permissions, template_id, role_templates(id, name)')
+      .select('id, full_name, role, access_status, permissions, template_id')
       .eq('org_id', orgId)
       .order('role')
     setMembers(data || [])
@@ -237,9 +237,8 @@ export default function Equipe() {
       .eq('org_id', orgId)
     setEditSaving(false)
     if (error) { setEditError(error.message); return }
-    const tpl = editTemplate ? templates.find(t => t.id === editTemplate) : null
     setMembers(prev => prev.map(m => m.id === editTarget.id
-      ? { ...m, role: editRole, permissions: editPerms, template_id: editTemplate || null, role_templates: tpl ? { id: tpl.id, name: tpl.name } : null }
+      ? { ...m, role: editRole, permissions: editPerms, template_id: editTemplate || null }
       : m))
     setEditTarget(null)
   }
@@ -367,7 +366,7 @@ export default function Equipe() {
                   {/* Cargo */}
                   <div className="mt-1.5">
                     <span className={`inline-flex text-[10px] font-bold px-2 py-0.5 rounded-lg ${ROLE_STYLE[m.role] || ROLE_STYLE.operador}`}>
-                      {m.role_templates?.name || ROLE_LABEL[m.role] || m.role}
+                      {(m.template_id ? templates.find(t => t.id === m.template_id)?.name : null) || ROLE_LABEL[m.role] || m.role}
                     </span>
                   </div>
                 </div>
