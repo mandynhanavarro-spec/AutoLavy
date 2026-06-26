@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -17,6 +17,9 @@ import {
   ArrowUpCircle,
   Monitor,
   ChevronRight,
+  Barcode,
+  Receipt,
+  ArrowLeftRight,
 } from 'lucide-react'
 import { supabase } from '../../../../shared/lib/supabase'
 import { useTenantContext } from '../../../../core/contexts/TenantContext'
@@ -204,6 +207,8 @@ export default function Caixa() {
   const cartItems = cart.reduce((s, i) => s + i.qty, 0)
   const cartTotal = cart.reduce((s, i) => s + itemPrice(i) * i.qty, 0)
   const getProductSegment = p => catSegmentMap[p?.category_id] || segment || 'geral'
+
+  const searchRef = useRef(null)
 
   /* load registers */
   useEffect(() => {
@@ -641,11 +646,51 @@ export default function Caixa() {
         )}
       </div>
 
+      {/* ── Mobile quick actions ── */}
+      <div className="md:hidden px-4 pb-3 grid grid-cols-2 gap-2.5">
+        <button
+          onClick={() => { setSearch(''); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
+          className="flex flex-col items-center justify-center gap-1.5 rounded-[10px] p-3"
+          style={{ backgroundColor: '#0891b2' }}
+        >
+          <ShoppingCart size={22} className="text-white" />
+          <span className="text-[10px] font-bold text-white">Nova venda</span>
+        </button>
+
+        <button
+          onClick={() => searchRef.current?.focus()}
+          className="flex flex-col items-center justify-center gap-1.5 rounded-[10px] p-3 bg-white border"
+          style={{ borderColor: '#e5e7eb' }}
+        >
+          <Barcode size={22} style={{ color: '#0891b2' }} />
+          <span className="text-[10px] font-bold text-gray-700">Buscar por código</span>
+        </button>
+
+        <button
+          onClick={() => navigate('/')}
+          className="flex flex-col items-center justify-center gap-1.5 rounded-[10px] p-3 bg-white border"
+          style={{ borderColor: '#e5e7eb' }}
+        >
+          <Receipt size={22} style={{ color: '#0891b2' }} />
+          <span className="text-[10px] font-bold text-gray-700">Últimas vendas</span>
+        </button>
+
+        <button
+          onClick={() => openMov('sangria')}
+          className="flex flex-col items-center justify-center gap-1.5 rounded-[10px] p-3 bg-white border"
+          style={{ borderColor: '#e5e7eb' }}
+        >
+          <ArrowLeftRight size={22} style={{ color: '#0891b2' }} />
+          <span className="text-[10px] font-bold text-gray-700">Sangria / Reforço</span>
+        </button>
+      </div>
+
       {/* ── search ── */}
       <div className="px-4 pb-3">
         <div className="flex items-center gap-2 bg-white rounded-2xl border border-gray-100 px-3 py-2.5 shadow-sm">
           <Search size={16} className="text-gray-400 shrink-0" />
           <input
+            ref={searchRef}
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
