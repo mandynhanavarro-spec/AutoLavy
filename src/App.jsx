@@ -254,7 +254,6 @@ export default function App() {
     let mounted = true
 
     async function loadUserContext(currentSession) {
-      console.log('[LOAD CONTEXT] iniciando...', new Date().toISOString())
       if (!currentSession?.user?.id) {
         if (!mounted) return
         setProfile(null)
@@ -337,8 +336,6 @@ export default function App() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (!mounted) return
-      console.log('[AUTH EVENT]', event, new Date().toISOString())
-
       setSession(nextSession)
 
       if (event === 'SIGNED_OUT') {
@@ -358,11 +355,8 @@ export default function App() {
           loadUserContext(nextSession)
           return
         }
-        console.log('[AUTH] SIGNED_IN ignorado — mesmo usuário')
         return
       }
-
-      console.log('[AUTH] ignorado:', event)
     })
 
     return () => {
@@ -372,7 +366,6 @@ export default function App() {
   }, [])
 
   if (loading) {
-    console.log('[LOADING] Router desmontado em:', window.location.pathname)
     return <div className="h-screen flex items-center justify-center">Carregando...</div>
   }
 
