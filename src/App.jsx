@@ -128,9 +128,16 @@ function LoginPage() {
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-sm border border-slate-100 space-y-5">
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '16px' }}>
+          <img
+            src="/Meu_Caixa_Logo.png"
+            alt="Meu Caixa"
+            style={{ width: '72px', height: '72px', borderRadius: '16px', objectFit: 'cover', marginBottom: '8px' }}
+          />
+        </div>
         <div>
-          <h1 className="text-2xl font-black text-slate-900">Acessar painel</h1>
-          <p className="text-sm text-slate-500 mt-1">Entre com sua conta para acessar a plataforma.</p>
+          <h1 className="text-2xl font-black text-slate-900">Bem-vindo ao Meu Caixa</h1>
+          <p className="text-sm text-slate-500 mt-1">Gerencie sua loja com facilidade, digite seus dados para continuar.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
