@@ -104,6 +104,10 @@ export default function Equipe() {
   const [updatingRole, setUpdatingRole] = useState(null)
   const [toggling, setToggling]         = useState(null)
   const [deleting, setDeleting]         = useState(null)
+  const [deleteTarget, setDeleteTarget]     = useState(null)
+  const [deletePassword, setDeletePassword] = useState('')
+  const [deleteError, setDeleteError]       = useState('')
+  const [deleteLoading, setDeleteLoading]   = useState(false)
 
   /* templates */
   const [templates, setTemplates] = useState([])
@@ -129,18 +133,42 @@ export default function Equipe() {
   const [editSaving, setEditSaving]   = useState(false)
   const [editError, setEditError]     = useState('')
 
-  /* delete employee (soft delete) */
-  async function deleteEmployee(member) {
-    if (!window.confirm(
-      `Excluir "${member.full_name || 'este funcionário'}"? O histórico será mantido mas o acesso será removido permanentemente.`
-    )) return
-    setDeleting(member.id)
-    await supabase
+  /* delete employee — modal com senha */
+  async function confirmDelete() {
+    if (!deletePassword.trim()) {
+      setDeleteError('Digite sua senha para confirmar.')
+      return
+    }
+    setDeleteLoading(true)
+    setDeleteError('')
+
+    const { data: { user } } = await supabase.auth.getUser()
+    const { error: authError } = await supabase.auth.signInWithPassword({
+      email: user.email,
+      password: deletePassword,
+    })
+
+    if (authError) {
+      setDeleteError('Senha incorreta. Tente novamente.')
+      setDeleteLoading(false)
+      return
+    }
+
+    const { error } = await supabase
       .from('profiles')
       .update({ access_status: 'excluido' })
-      .eq('id', member.id)
+      .eq('id', deleteTarget.id)
       .eq('org_id', orgId)
-    setDeleting(null)
+
+    setDeleteLoading(false)
+
+    if (error) {
+      setDeleteError('Erro ao excluir: ' + error.message)
+      return
+    }
+
+    setDeleteTarget(null)
+    setDeletePassword('')
     load()
   }
 
@@ -418,10 +446,9 @@ export default function Equipe() {
                       }
                     </button>
                     <button
-                      onClick={() => deleteEmployee(m)}
-                      disabled={deleting === m.id}
+                      onClick={() => { setDeleteTarget(m); setDeletePassword(''); setDeleteError('') }}
                       title="Excluir funcionário"
-                      className="w-9 h-9 rounded-xl bg-red-50 hover:bg-red-100 flex items-center justify-center transition-colors disabled:opacity-40"
+                      className="w-9 h-9 rounded-xl bg-red-50 hover:bg-red-100 flex items-center justify-center transition-colors"
                     >
                       <Trash2 size={15} className="text-red-500" />
                     </button>
@@ -751,6 +778,64 @@ export default function Equipe() {
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ════ Delete Confirmation Modal ════ */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl">
+
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-black text-gray-900">Excluir funcionário</h3>
+              <button onClick={() => setDeleteTarget(null)}>
+                <X size={20} className="text-gray-400" />
+              </button>
+            </div>
+
+            <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-4">
+              <p className="text-sm text-red-700 font-semibold">
+                Você está prestes a excluir &ldquo;{deleteTarget.full_name}&rdquo;.
+              </p>
+              <p className="text-xs text-red-500 mt-1">
+                O histórico será mantido mas o acesso será removido permanentemente.
+              </p>
+            </div>
+
+            <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wide block mb-1.5">
+              Confirme sua senha de Admin
+            </label>
+            <input
+              type="password"
+              value={deletePassword}
+              onChange={e => setDeletePassword(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && confirmDelete()}
+              placeholder="Digite sua senha..."
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:ring-2 focus:ring-red-400 mb-3"
+              autoFocus
+            />
+
+            {deleteError && (
+              <p className="text-xs text-red-500 mb-3">{deleteError}</p>
+            )}
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-600"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmDelete}
+                disabled={deleteLoading}
+                className="flex-1 py-2.5 rounded-xl bg-red-500 text-white text-sm font-bold disabled:opacity-50"
+              >
+                {deleteLoading ? 'Verificando...' : 'Excluir'}
+              </button>
+            </div>
+
           </div>
         </div>
       )}
