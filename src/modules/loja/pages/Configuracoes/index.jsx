@@ -561,7 +561,7 @@ export default function Configuracoes() {
       {isAdmin && (
         <Section title="Cargos e Permissões" icon={Sliders} color={color}>
           <p className="text-xs text-gray-500">
-            Crie templates de permissões personalizados para esta organização. Ficam disponíveis ao criar ou editar funcionários.
+            Crie cargos com permissões personalizadas para esta organização. Ficam disponíveis ao criar ou editar funcionários.
           </p>
 
           {templates.length > 0 && (
