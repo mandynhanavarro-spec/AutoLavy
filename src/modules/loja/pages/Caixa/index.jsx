@@ -649,7 +649,7 @@ export default function Caixa() {
       {/* ── Mobile quick actions ── */}
       <div className="md:hidden px-4 pb-3 grid grid-cols-2 gap-2.5">
         <button
-          onClick={() => { setSearch(''); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
+          onClick={() => { setCart([]); setDone(null); setSearch(''); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
           className="flex flex-col items-center justify-center gap-1.5 rounded-[10px] p-3"
           style={{ backgroundColor: '#0891b2' }}
         >
