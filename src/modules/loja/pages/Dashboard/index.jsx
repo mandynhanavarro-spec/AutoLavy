@@ -166,7 +166,7 @@ export default function Dashboard() {
         </div>
         <button
           onClick={() => navigate('/pdv')}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-white text-sm font-bold shadow-md active:scale-95 transition-transform"
+          className="hidden md:flex items-center gap-1.5 px-4 py-2 rounded-xl text-white text-sm font-bold shadow-md active:scale-95 transition-transform"
           style={{ backgroundColor: themeColor }}
         >
           <ShoppingCart size={15} />
