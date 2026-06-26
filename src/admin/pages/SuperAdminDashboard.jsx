@@ -5,6 +5,7 @@ import {
   ExternalLink, FileText, KeyRound, LayoutDashboard, Lock,
   LogOut, Monitor, Plus, Search, Settings2, Shield, Trash2,
   WalletCards, X, Users, Pencil, Eye, EyeOff, LogIn,
+  RefreshCw, PauseCircle, PlayCircle,
 } from 'lucide-react'
 import { supabase } from '../../shared/lib/supabase'
 import { LogoAutoLavy } from '../../shared/components/Logo'
@@ -1387,28 +1388,42 @@ export default function SuperAdminDashboard() {
                           <td className="px-5 py-3.5 text-gray-400 text-xs">{new Date(c.created_at).toLocaleDateString('pt-BR')}</td>
                           <td className="px-5 py-3.5"><StatusBadge value={c.paymentStatus} /></td>
                           <td className="px-5 py-3.5">
-                            <div className="flex gap-2 flex-wrap">
-                              {(c.name && c.contact_email && orgsWithRegisters.has(c.id)) ? (
-                                <button type="button" onClick={() => setOnboardingOrg(c)} className="rounded-xl bg-violet-50 border border-violet-200 px-3 py-1.5 text-xs font-bold text-violet-700 hover:bg-violet-100 transition-colors flex items-center gap-1.5">
-                                  <Settings2 size={12} />Reabrir Onboarding
-                                </button>
-                              ) : (
-                                <button type="button" onClick={() => setOnboardingOrg(c)} className="rounded-xl bg-amber-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-600 transition-colors flex items-center gap-1.5">
-                                  <Settings2 size={12} />Continuar Onboarding
-                                </button>
-                              )}
-                              <button type="button" onClick={() => openEditOrganizationModal(c)} className="rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-xs font-bold text-gray-700 hover:bg-gray-50 transition-colors">Editar</button>
-                              <button type="button" disabled={isActionRunning(`toggle-customer-${c.id}`)} onClick={() => handleToggleCustomerStatus(c)}
-                                className={`rounded-xl px-3 py-1.5 text-xs font-bold disabled:opacity-60 transition-colors ${c.customer_status === 'suspenso' ? 'bg-emerald-500 hover:bg-emerald-600 text-white' : 'bg-amber-500 hover:bg-amber-600 text-white'}`}>
-                                {isActionRunning(`toggle-customer-${c.id}`) ? '...' : c.customer_status === 'suspenso' ? 'Reativar' : 'Suspender'}
+                            <div className="flex items-center gap-1.5">
+                              {/* Onboarding */}
+                              <button type="button" onClick={() => setOnboardingOrg(c)}
+                                title={c.name && c.contact_email && orgsWithRegisters.has(c.id) ? 'Reabrir Onboarding' : 'Continuar Onboarding'}
+                                className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors hover:brightness-95"
+                                style={{ backgroundColor: '#ede9fe' }}>
+                                <RefreshCw size={15} style={{ color: '#6d28d9' }} />
                               </button>
+                              {/* Editar */}
+                              <button type="button" onClick={() => openEditOrganizationModal(c)} title="Editar cliente"
+                                className="w-9 h-9 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors">
+                                <Pencil size={15} className="text-gray-500" />
+                              </button>
+                              {/* Suspender / Reativar */}
+                              <button type="button" disabled={isActionRunning(`toggle-customer-${c.id}`)}
+                                onClick={() => handleToggleCustomerStatus(c)}
+                                title={c.customer_status === 'suspenso' ? 'Reativar' : 'Suspender'}
+                                className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors hover:brightness-95 disabled:opacity-50"
+                                style={{ backgroundColor: '#fef3c7' }}>
+                                {c.customer_status === 'suspenso'
+                                  ? <PlayCircle  size={15} style={{ color: '#92400e' }} />
+                                  : <PauseCircle size={15} style={{ color: '#92400e' }} />
+                                }
+                              </button>
+                              {/* Acessar como */}
+                              <button type="button" onClick={() => enterSupportMode(c)} title="Acessar como cliente (suporte)"
+                                className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors hover:brightness-95"
+                                style={{ backgroundColor: '#dbeafe' }}>
+                                <LogIn size={15} style={{ color: '#1d4ed8' }} />
+                              </button>
+                              {/* Excluir */}
                               <button type="button" onClick={() => { setDeleteTarget(c); setDeletePassword(''); setDeleteError('') }}
-                                className="rounded-xl bg-rose-50 border border-rose-200 px-3 py-1.5 text-xs font-bold text-rose-600 hover:bg-rose-100 transition-colors" title="Excluir permanentemente">
-                                <Trash2 size={13} />
-                              </button>
-                              <button type="button" onClick={() => enterSupportMode(c)} title="Acessar como cliente"
-                                className="w-9 h-9 rounded-xl bg-blue-50 hover:bg-blue-100 flex items-center justify-center transition-colors">
-                                <LogIn size={15} className="text-blue-500" />
+                                title="Excluir cliente"
+                                className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors hover:brightness-95"
+                                style={{ backgroundColor: '#fee2e2' }}>
+                                <Trash2 size={15} style={{ color: '#991b1b' }} />
                               </button>
                             </div>
                           </td>
