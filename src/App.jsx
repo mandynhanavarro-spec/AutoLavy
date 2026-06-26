@@ -253,6 +253,7 @@ export default function App() {
     let mounted = true
 
     async function loadUserContext(currentSession) {
+      console.log('[LOAD CONTEXT] iniciando...', new Date().toISOString())
       if (!currentSession?.user?.id) {
         if (!mounted) return
         setProfile(null)
@@ -333,6 +334,7 @@ export default function App() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      console.log('[AUTH EVENT]', event, new Date().toISOString())
       if (!mounted) return
       setSession(nextSession)
       if (
@@ -352,6 +354,7 @@ export default function App() {
   }, [])
 
   if (loading) {
+    console.log('[LOADING] Router desmontado em:', window.location.pathname)
     return <div className="h-screen flex items-center justify-center">Carregando...</div>
   }
 
