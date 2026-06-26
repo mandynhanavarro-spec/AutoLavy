@@ -1340,10 +1340,10 @@ export default function SuperAdminDashboard() {
 
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[1000px]">
+                  <table className="w-full min-w-[700px]">
                     <thead style={{ background: '#f8f7ff' }}>
                       <tr className="text-left text-[10px] uppercase tracking-widest text-gray-400 font-black">
-                        {['Empresa','Responsável','E-mail','WhatsApp','Plano','Vertical','Status','Cadastro','Pagamento','Ações'].map(h => (
+                        {['Empresa','Responsável','Vertical','Plano','Status','Pagamento','Ações'].map(h => (
                           <th key={h} className="px-5 py-4">{h}</th>
                         ))}
                       </tr>
@@ -1365,11 +1365,6 @@ export default function SuperAdminDashboard() {
                             </div>
                           </td>
                           <td className="px-5 py-3.5 text-gray-500">{c.responsible_name || '-'}</td>
-                          <td className="px-5 py-3.5 text-gray-500">{c.contact_email || '-'}</td>
-                          <td className="px-5 py-3.5 text-gray-500">{c.whatsapp || '-'}</td>
-                          <td className="px-5 py-3.5">
-                            <span className="text-xs font-bold text-violet-600 bg-violet-50 px-2.5 py-1 rounded-lg">{c.planName}</span>
-                          </td>
                           <td className="px-5 py-3.5">
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <VerticalBadge value={c.product_id} />
@@ -1384,8 +1379,10 @@ export default function SuperAdminDashboard() {
                               )}
                             </div>
                           </td>
+                          <td className="px-5 py-3.5">
+                            <span className="text-xs font-bold text-violet-600 bg-violet-50 px-2.5 py-1 rounded-lg">{c.planName}</span>
+                          </td>
                           <td className="px-5 py-3.5"><StatusBadge value={c.customer_status} /></td>
-                          <td className="px-5 py-3.5 text-gray-400 text-xs">{new Date(c.created_at).toLocaleDateString('pt-BR')}</td>
                           <td className="px-5 py-3.5"><StatusBadge value={c.paymentStatus} /></td>
                           <td className="px-5 py-3.5">
                             <div className="flex items-center gap-1.5">
