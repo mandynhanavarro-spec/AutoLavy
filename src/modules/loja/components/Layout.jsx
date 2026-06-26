@@ -124,20 +124,12 @@ export default function Layout({ profile }) {
         {/* Org identity */}
         <div className="px-4 py-4 border-b border-white/10">
           <div className="flex items-center gap-3">
-            {org?.logo_url ? (
-              <img
-                src={org.logo_url}
-                alt={org.name}
-                className="w-10 h-10 rounded-xl object-contain bg-white/10 p-1 shrink-0"
-              />
-            ) : (
-              <div
-                className="w-10 h-10 rounded-xl flex items-center justify-center font-black text-white text-base shrink-0"
-                style={{ backgroundColor: '#0891b2' }}
-              >
-                {org?.name?.charAt(0) || 'L'}
-              </div>
-            )}
+            <img
+              src={org?.logo_url || '/Meu_Caixa_Logo.png'}
+              alt="Meu Caixa"
+              style={{ width: '32px', height: '32px', borderRadius: '8px', objectFit: 'cover' }}
+              className="shrink-0"
+            />
             <div className="min-w-0">
               <p className="font-bold text-white text-sm truncate leading-tight">
                 {org?.name || 'Carregando...'}
@@ -210,17 +202,12 @@ export default function Layout({ profile }) {
             <Menu size={20} />
           </button>
           <div className="flex items-center gap-2 min-w-0">
-            {org?.logo_url ? (
-              <img
-                src={org.logo_url}
-                alt={org.name}
-                className="w-7 h-7 object-contain bg-white rounded-lg p-0.5 shrink-0"
-              />
-            ) : (
-              <div className="w-7 h-7 bg-white/20 rounded-lg flex items-center justify-center font-black text-xs border border-white/30 shrink-0">
-                {org?.name?.charAt(0) || 'L'}
-              </div>
-            )}
+            <img
+              src={org?.logo_url || '/Meu_Caixa_Logo.png'}
+              alt="Meu Caixa"
+              style={{ width: '28px', height: '28px', borderRadius: '6px', objectFit: 'cover' }}
+              className="shrink-0"
+            />
             <div className="min-w-0">
               <h1 className="font-bold text-sm truncate leading-tight">
                 {org?.name || 'Carregando...'}
@@ -322,20 +309,12 @@ export default function Layout({ profile }) {
             {/* Drawer header */}
             <div className="px-4 py-4 flex items-center justify-between border-b border-white/10 shrink-0">
               <div className="flex items-center gap-3 min-w-0">
-                {org?.logo_url ? (
-                  <img
-                    src={org.logo_url}
-                    alt={org.name}
-                    className="w-8 h-8 object-contain bg-white rounded-lg p-0.5 shrink-0"
-                  />
-                ) : (
-                  <div
-                    className="w-8 h-8 rounded-lg flex items-center justify-center font-black text-white text-sm shrink-0"
-                    style={{ backgroundColor: '#1a2e4a' }}
-                  >
-                    {org?.name?.charAt(0) || 'L'}
-                  </div>
-                )}
+                <img
+                  src={org?.logo_url || '/Meu_Caixa_Logo.png'}
+                  alt="Meu Caixa"
+                  style={{ width: '32px', height: '32px', borderRadius: '8px', objectFit: 'cover' }}
+                  className="shrink-0"
+                />
                 <div className="min-w-0">
                   <p className="font-bold text-white text-sm truncate leading-tight">
                     {org?.name || 'Carregando...'}
