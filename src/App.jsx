@@ -334,17 +334,31 @@ export default function App() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, nextSession) => {
-      console.log('[AUTH EVENT]', event, new Date().toISOString())
       if (!mounted) return
+      console.log('[AUTH EVENT]', event, new Date().toISOString())
+
+      const previousUserId = session?.user?.id
+      const nextUserId     = nextSession?.user?.id
+
       setSession(nextSession)
-      if (
-        event === 'SIGNED_IN' ||
-        event === 'SIGNED_OUT' ||
-        event === 'INITIAL_SESSION'
-      ) {
+
+      if (event === 'SIGNED_OUT') {
         loadUserContext(nextSession)
+        return
       }
-      // TOKEN_REFRESHED não recarrega — evita desmontar o Router
+
+      if (event === 'INITIAL_SESSION') {
+        loadUserContext(nextSession)
+        return
+      }
+
+      if (event === 'SIGNED_IN' && nextUserId !== previousUserId) {
+        loadUserContext(nextSession)
+        return
+      }
+
+      // SIGNED_IN com mesmo usuário, TOKEN_REFRESHED e outros → ignora
+      console.log('[AUTH] ignorado — mesmo usuário ou evento não relevante:', event)
     })
 
     return () => {
