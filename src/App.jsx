@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
-import { BrowserRouter as Router, Navigate, Route, Routes } from 'react-router-dom'
+import { BrowserRouter as Router, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { TenantProvider } from './core/contexts/TenantContext'
 import Register from './core/pages/Register'
 import SuspensaoPage from './core/pages/Suspenso'
@@ -100,6 +100,16 @@ function VerticalEmConstrucao({ productId }) {
       </div>
     </div>
   )
+}
+
+function RouteTracker() {
+  const location = useLocation()
+  useEffect(() => {
+    if (location.pathname !== '/login') {
+      sessionStorage.setItem('last_route', location.pathname)
+    }
+  }, [location.pathname])
+  return null
 }
 
 // ── Paginas pequenas (eager — necessarias no primeiro load) ────
@@ -343,13 +353,14 @@ export default function App() {
     return (
       <TenantProvider value={{ tenant: null, modules: [], profile, loading: false }}>
         <Router>
+          <RouteTracker />
           <S>
             <Routes>
               <Route path="/login"     element={<Navigate to="/superadmin" replace />} />
               <Route path="/registrar" element={<Register />} />
               <Route path="/upgrade"   element={<Navigate to="/superadmin" replace />} />
               <Route path="/superadmin" element={<SuperAdminDashboard />} />
-              <Route path="*"          element={<Navigate to="/superadmin" replace />} />
+              <Route path="*"          element={<Navigate to={sessionStorage.getItem('last_route') || '/superadmin'} replace />} />
             </Routes>
           </S>
         </Router>
@@ -415,8 +426,9 @@ export default function App() {
         </div>
       )}
       <Router>
+        <RouteTracker />
         <Routes>
-          <Route path="/login"      element={!session ? <LoginPage /> : <Navigate to="/" replace />} />
+          <Route path="/login"      element={!session ? <LoginPage /> : <Navigate to={sessionStorage.getItem('last_route') || '/'} replace />} />
           <Route path="/registrar"  element={<Register />} />
           <Route path="/upgrade"    element={<UpgradePage />} />
           <Route path="/superadmin" element={session ? <Navigate to="/" replace /> : <Navigate to="/login" replace />} />
