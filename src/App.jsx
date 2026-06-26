@@ -231,7 +231,7 @@ function NoOrganizationPage() {
 
 // ── App ───────────────────────────────────────────────────────
 export default function App() {
-  useServiceWorker()
+  const { needRefresh, updateServiceWorker } = useServiceWorker()
 
   const supportMode    = sessionStorage.getItem('support_mode') === 'true'
   const supportOrgName = sessionStorage.getItem('support_org_name')
@@ -359,6 +359,25 @@ export default function App() {
   if (session && profile?.role === 'superadmin' && !supportMode) {
     return (
       <TenantProvider value={{ tenant: null, modules: [], profile, loading: false }}>
+        {needRefresh && (
+          <div style={{
+            position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 9998,
+            backgroundColor: '#1a2e4a', padding: '10px 16px',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          }}>
+            <span style={{ fontSize: 13, color: 'white' }}>Nova versão disponível</span>
+            <button
+              onClick={() => updateServiceWorker(true)}
+              style={{
+                fontSize: 12, fontWeight: 500, color: '#1a2e4a',
+                background: 'white', border: 'none',
+                borderRadius: 6, padding: '5px 14px', cursor: 'pointer',
+              }}
+            >
+              Atualizar agora
+            </button>
+          </div>
+        )}
         <Router>
           <RouteTracker />
           <S>
@@ -429,6 +448,25 @@ export default function App() {
             }}
           >
             Sair do suporte
+          </button>
+        </div>
+      )}
+      {needRefresh && (
+        <div style={{
+          position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 9998,
+          backgroundColor: '#1a2e4a', padding: '10px 16px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        }}>
+          <span style={{ fontSize: 13, color: 'white' }}>Nova versão disponível</span>
+          <button
+            onClick={() => updateServiceWorker(true)}
+            style={{
+              fontSize: 12, fontWeight: 500, color: '#1a2e4a',
+              background: 'white', border: 'none',
+              borderRadius: 6, padding: '5px 14px', cursor: 'pointer',
+            }}
+          >
+            Atualizar agora
           </button>
         </div>
       )}

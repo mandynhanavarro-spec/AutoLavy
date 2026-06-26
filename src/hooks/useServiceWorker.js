@@ -1,4 +1,3 @@
-import { useEffect } from 'react'
 import { useRegisterSW } from 'virtual:pwa-register/react'
 
 export function useServiceWorker() {
@@ -7,10 +6,5 @@ export function useServiceWorker() {
       r && setInterval(() => r.update(), 60 * 1000)
     },
   })
-
-  useEffect(() => {
-    if (needRefresh[0]) {
-      updateServiceWorker(true)
-    }
-  }, [needRefresh, updateServiceWorker])
+  return { needRefresh: needRefresh[0], updateServiceWorker }
 }
