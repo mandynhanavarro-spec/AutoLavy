@@ -95,7 +95,7 @@ export default function Equipe() {
   const { tenant, profile } = useTenantContext()
   const orgId   = tenant?.id
   const orgSlug = tenant?.slug || ''
-  const color   = tenant?.theme_color || '#3b82f6'
+  const color   = '#7c3aed'
   const isAdmin = profile?.role === 'admin' || profile?.role === 'superadmin'
 
   /* member list */

@@ -73,8 +73,6 @@ export default function Layout({ profile }) {
     setDrawerOpen(false)
   }, [location.pathname])
 
-  const color = org?.theme_color || '#3b82f6'
-
   /* sidebar link */
   function SLink({ path, icon: Icon, label }) {
     const active = location.pathname === path
@@ -86,7 +84,7 @@ export default function Layout({ profile }) {
             ? 'text-white shadow-sm'
             : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
         }`}
-        style={active ? { backgroundColor: color } : {}}
+        style={active ? { backgroundColor: '#7c3aed' } : {}}
       >
         <Icon size={17} />
         {label}
@@ -132,7 +130,7 @@ export default function Layout({ profile }) {
             ) : (
               <div
                 className="w-10 h-10 rounded-xl flex items-center justify-center font-black text-white text-base shrink-0"
-                style={{ backgroundColor: color }}
+                style={{ backgroundColor: '#1e1b4b' }}
               >
                 {org?.name?.charAt(0) || 'L'}
               </div>
@@ -200,7 +198,7 @@ export default function Layout({ profile }) {
         {/* Mobile header */}
         <header
           className="md:hidden h-14 px-4 flex items-center justify-between text-white shadow-md shrink-0"
-          style={{ backgroundColor: color }}
+          style={{ backgroundColor: '#1e1b4b' }}
         >
           <button
             onClick={() => setDrawerOpen(true)}
@@ -330,7 +328,7 @@ export default function Layout({ profile }) {
                 ) : (
                   <div
                     className="w-8 h-8 rounded-lg flex items-center justify-center font-black text-white text-sm shrink-0"
-                    style={{ backgroundColor: color }}
+                    style={{ backgroundColor: '#1e1b4b' }}
                   >
                     {org?.name?.charAt(0) || 'L'}
                   </div>

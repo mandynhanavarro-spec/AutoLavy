@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import {
-  Building2, Palette, User,
+  Building2, User,
   Lock, LogOut, Save, Eye, EyeOff, Sliders, Plus, Trash2, X, Monitor, Check, Grid3x3,
 } from 'lucide-react'
 import { supabase } from '../../../../shared/lib/supabase'
@@ -42,7 +42,7 @@ function Field({ label, children }) {
 export default function Configuracoes() {
   const { tenant, profile } = useTenantContext()
   const orgId   = tenant?.id
-  const color   = tenant?.theme_color || '#3b82f6'
+  const color   = '#7c3aed'
   const isAdmin = profile?.role === 'admin' || profile?.role === 'superadmin'
 
   /* meus caixas */
@@ -258,7 +258,6 @@ export default function Configuracoes() {
     address:       tenant?.address       || '',
     contact_email: tenant?.contact_email || '',
     whatsapp:      tenant?.whatsapp      || '',
-    theme_color:   tenant?.theme_color   || '#3b82f6',
   }))
   const [savingStore, setSavingStore] = useState(false)
   const [storeSaved, setStoreSaved]   = useState(false)
@@ -276,7 +275,6 @@ export default function Configuracoes() {
     if (!orgId || !isAdmin) return
     setStoreError('')
     setSavingStore(true)
-    const colorChanged = storeForm.theme_color !== tenant?.theme_color
     const { error } = await supabase
       .from('organizations')
       .update({
@@ -286,7 +284,6 @@ export default function Configuracoes() {
         address:       storeForm.address.trim(),
         contact_email: storeForm.contact_email.trim(),
         whatsapp:      storeForm.whatsapp.trim(),
-        theme_color:   storeForm.theme_color,
       })
       .eq('id', orgId)
     setSavingStore(false)
@@ -295,9 +292,6 @@ export default function Configuracoes() {
 
     setStoreSaved(true)
     setTimeout(() => setStoreSaved(false), 3000)
-
-    /* reload page so Layout picks up new theme color */
-    if (colorChanged) setTimeout(() => window.location.reload(), 1200)
   }
 
   /* ── password change ─────────────────────────────────── */
@@ -405,46 +399,6 @@ export default function Configuracoes() {
           </button>
         )}
       </Section>
-
-      {/* ════ Aparência ════ */}
-      {isAdmin && (
-        <Section title="Aparência" icon={Palette} color={color}>
-          <Field label="Cor do tema">
-            <div className="flex items-center gap-4 flex-wrap">
-              <input
-                type="color"
-                value={storeForm.theme_color}
-                onChange={e => setStoreForm(f => ({ ...f, theme_color: e.target.value }))}
-                className="w-14 h-14 rounded-2xl border-2 border-gray-200 cursor-pointer p-1 bg-white"
-              />
-              <div className="min-w-0">
-                <p className="text-sm font-black text-gray-900 uppercase tracking-wide">
-                  {storeForm.theme_color}
-                </p>
-                <p className="text-xs text-gray-400 mt-0.5">
-                  Aplicada no header, sidebar e botões
-                </p>
-              </div>
-              <div
-                className="flex-1 min-w-[80px] h-10 rounded-xl flex items-center justify-center text-white text-xs font-bold shadow-sm"
-                style={{ backgroundColor: storeForm.theme_color }}
-              >
-                Visualização
-              </div>
-            </div>
-          </Field>
-          <button
-            onClick={saveStore}
-            disabled={savingStore}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-white text-sm font-bold shadow-sm disabled:opacity-60 transition-colors"
-            style={{ backgroundColor: storeSaved ? '#10b981' : color }}
-          >
-            <Save size={14} />
-            {storeSaved ? 'Cor aplicada! Recarregando...' : savingStore ? 'Salvando...' : 'Aplicar cor'}
-          </button>
-          <p className="text-[11px] text-gray-400">A cor é aplicada após o recarregamento automático da página.</p>
-        </Section>
-      )}
 
       {/* ════ Grade de Variações (moda only) ════ */}
       {isAdmin && tenant?.segment === 'moda' && (

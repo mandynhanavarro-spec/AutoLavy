@@ -391,7 +391,7 @@ export default function Produtos() {
   const { hasMultiplePDV } = useMultiPDV()
   const canManage = can('can_manage_products')
   const orgId  = tenant?.id
-  const color  = tenant?.theme_color || '#3b82f6'
+  const color  = '#7c3aed'
   const segment = tenant?.segment || 'geral'
 
   const [products, setProducts] = useState([])
