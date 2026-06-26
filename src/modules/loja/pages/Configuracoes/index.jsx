@@ -595,6 +595,7 @@ export default function Configuracoes() {
       )}
 
       {/* ════ Meus Caixas ════ */}
+      {hasMultiplePDV && (
       <Section title="Meus Caixas" icon={Monitor} color={color}>
         <p className="text-xs text-gray-500">
           Visualize e configure os caixas ativos desta organização.
@@ -747,17 +748,8 @@ export default function Configuracoes() {
           </div>
         )}
 
-        {/* ── Adicionar Caixa (admin only) ── */}
-        {isAdmin && (
-          <button
-            onClick={() => { setAddRegOpen(true); setAddRegName(''); setAddRegDesc(''); setAddRegError('') }}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 text-gray-500 text-sm font-bold hover:border-gray-400 hover:text-gray-600 transition-colors"
-          >
-            <Plus size={14} />
-            Adicionar Caixa
-          </button>
-        )}
       </Section>
+      )}
 
       {/* ── Modal: Adicionar Caixa ── */}
       {addRegOpen && (
