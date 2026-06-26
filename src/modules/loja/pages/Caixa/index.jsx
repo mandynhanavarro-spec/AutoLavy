@@ -313,14 +313,16 @@ export default function Caixa() {
         periodStart.setDate(periodStart.getDate() - 7)
       }
       periodStart.setHours(0, 0, 0, 0)
-      const { data: salesData } = await supabase
-        .from('sale_items')
-        .select('product_id, quantity')
+      const { data: salesRows } = await supabase
+        .from('sales')
+        .select('sale_items(product_id, quantity)')
         .eq('org_id', orgId)
         .gte('created_at', periodStart.toISOString())
       const salesMap = {}
-      ;(salesData || []).forEach(item => {
-        salesMap[item.product_id] = (salesMap[item.product_id] || 0) + Number(item.quantity)
+      ;(salesRows || []).forEach(sale => {
+        ;(sale.sale_items || []).forEach(item => {
+          salesMap[item.product_id] = (salesMap[item.product_id] || 0) + Number(item.quantity)
+        })
       })
       setSalesCount(salesMap)
 
