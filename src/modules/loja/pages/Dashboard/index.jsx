@@ -261,7 +261,12 @@ export default function Dashboard() {
                     </p>
                   </div>
                   <div className="flex flex-col items-end gap-1">
-                    <p className="text-base font-black text-gray-900">{fmt(data.total)}</p>
+                    <p
+                      className="text-base font-black"
+                      style={valuesHidden ? { color: '#d1d5db', letterSpacing: '3px' } : { color: '#111827' }}
+                    >
+                      {valuesHidden ? '••••' : fmt(data.total)}
+                    </p>
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                       isClosed ? 'bg-gray-100 text-gray-500' : 'bg-green-100 text-green-700'
                     }`}>
@@ -274,7 +279,12 @@ export default function Dashboard() {
 
             <div className="bg-gray-900 rounded-2xl px-4 py-3 flex items-center justify-between">
               <p className="text-sm font-bold text-white">Total do Dia</p>
-              <p className="text-base font-black text-white">{fmt(todayTotal)}</p>
+              <p
+                className="text-base font-black"
+                style={valuesHidden ? { color: '#d1d5db', letterSpacing: '3px' } : { color: 'white' }}
+              >
+                {valuesHidden ? '••••' : fmt(todayTotal)}
+              </p>
             </div>
           </div>
         </div>
@@ -322,7 +332,12 @@ export default function Dashboard() {
                     {i + 1}
                   </span>
                   <div>
-                    <p className="text-sm font-bold text-gray-900">{fmt(sale.total_amount)}</p>
+                    <p
+                      className="text-sm font-bold"
+                      style={valuesHidden ? { color: '#d1d5db', letterSpacing: '3px' } : { color: '#111827' }}
+                    >
+                      {valuesHidden ? '••••' : fmt(sale.total_amount)}
+                    </p>
                     <p className="text-[11px] text-gray-400">
                       {sale.profiles?.full_name || 'Vendedor'} ·{' '}
                       {new Date(sale.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
