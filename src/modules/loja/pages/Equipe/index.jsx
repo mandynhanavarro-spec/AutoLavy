@@ -593,52 +593,29 @@ export default function Equipe() {
               <button onClick={() => setEditTarget(null)}><X size={20} className="text-gray-400" /></button>
             </div>
 
-            {/* Role selector */}
+            {/* Cargo */}
             <div>
-              <label className="text-[11px] font-bold text-gray-400 mb-1.5 block uppercase tracking-wide">Cargo / Role</label>
-              <div className="flex gap-2">
-                {ROLES.map(r => (
-                  <button
-                    key={r.key}
-                    type="button"
-                    onClick={() => setEditRole(r.key)}
-                    className={`flex-1 py-2.5 rounded-xl text-xs font-bold border transition-all ${
-                      editRole === r.key
-                        ? 'text-white border-transparent'
-                        : 'text-gray-500 border-gray-200 bg-gray-50 hover:bg-gray-100'
-                    }`}
-                    style={editRole === r.key ? { backgroundColor: color } : {}}
-                  >
-                    {r.label}
-                  </button>
+              <label className="text-[11px] font-bold text-gray-400 mb-1.5 block uppercase tracking-wide">Cargo</label>
+              <select
+                value={editTemplate}
+                onChange={e => {
+                  const id = e.target.value
+                  setEditTemplate(id)
+                  if (id) {
+                    const tpl = templates.find(t => t.id === id)
+                    if (tpl) {
+                      setEditRole(tpl.base_role || 'operador')
+                      setEditPerms({ ...DEFAULT_PERMISSIONS, ...tpl.permissions })
+                    }
+                  }
+                }}
+                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Selecionar cargo...</option>
+                {templates.map(t => (
+                  <option key={t.id} value={t.id}>{t.name}{t.is_default ? ' ★' : ''}</option>
                 ))}
-              </div>
-            </div>
-
-            {/* Template reset */}
-            <div>
-              <label className="text-[11px] font-bold text-gray-400 mb-1.5 block uppercase tracking-wide">Resetar para template</label>
-              <div className="flex gap-2">
-                <select
-                  value={editTemplate}
-                  onChange={e => setEditTemplate(e.target.value)}
-                  className="flex-1 px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Selecionar template...</option>
-                  {templates.map(t => (
-                    <option key={t.id} value={t.id}>{t.name}{t.is_default ? ' ★' : ''}</option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  onClick={resetToTemplate}
-                  disabled={!editTemplate}
-                  className="w-10 h-10 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors disabled:opacity-40 shrink-0"
-                  title="Resetar para template"
-                >
-                  <RotateCcw size={15} className="text-gray-600" />
-                </button>
-              </div>
+              </select>
             </div>
 
             {/* Permission toggles */}
