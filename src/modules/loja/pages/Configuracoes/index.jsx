@@ -42,7 +42,7 @@ function Field({ label, children }) {
 export default function Configuracoes() {
   const { tenant, profile } = useTenantContext()
   const orgId   = tenant?.id
-  const color   = '#f97316'
+  const color   = '#0891b2'
   const isAdmin = profile?.role === 'admin' || profile?.role === 'superadmin'
 
   /* meus caixas */

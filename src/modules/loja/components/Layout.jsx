@@ -84,7 +84,7 @@ export default function Layout({ profile }) {
             ? 'text-white shadow-sm'
             : 'text-white/70 hover:bg-white/10 hover:text-white'
         }`}
-        style={active ? { backgroundColor: '#f97316' } : {}}
+        style={active ? { backgroundColor: '#0891b2' } : {}}
       >
         <Icon size={17} />
         {label}
@@ -101,7 +101,7 @@ export default function Layout({ profile }) {
         className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors"
         style={{
           color: active ? 'white' : 'rgba(255,255,255,0.7)',
-          backgroundColor: active ? '#f97316' : undefined,
+          backgroundColor: active ? '#0891b2' : undefined,
         }}
       >
         <Icon size={17} />
@@ -133,7 +133,7 @@ export default function Layout({ profile }) {
             ) : (
               <div
                 className="w-10 h-10 rounded-xl flex items-center justify-center font-black text-white text-base shrink-0"
-                style={{ backgroundColor: '#f97316' }}
+                style={{ backgroundColor: '#0891b2' }}
               >
                 {org?.name?.charAt(0) || 'L'}
               </div>
@@ -249,7 +249,7 @@ export default function Layout({ profile }) {
                 className="flex flex-col items-center gap-1 py-3 rounded-lg"
                 style={{ background: 'white', border: '0.5px solid #e5e7eb' }}
               >
-                <ShoppingCart size={18} style={{ color: '#f97316' }} />
+                <ShoppingCart size={18} style={{ color: '#0891b2' }} />
                 <span className="text-[9px] font-semibold text-gray-600">Nova venda</span>
               </button>
               <button
@@ -257,7 +257,7 @@ export default function Layout({ profile }) {
                 className="flex flex-col items-center gap-1 py-3 rounded-lg"
                 style={{ background: 'white', border: '0.5px solid #e5e7eb' }}
               >
-                <DollarSign size={18} style={{ color: '#f97316' }} />
+                <DollarSign size={18} style={{ color: '#0891b2' }} />
                 <span className="text-[9px] font-semibold text-gray-600">Fechar caixa</span>
               </button>
             </div>
@@ -288,13 +288,13 @@ export default function Layout({ profile }) {
                 {active && (
                   <span
                     className="absolute top-1.5 w-1.5 h-1.5 rounded-full"
-                    style={{ backgroundColor: '#f97316' }}
+                    style={{ backgroundColor: '#0891b2' }}
                   />
                 )}
-                <Icon size={22} style={{ color: active ? '#f97316' : 'rgba(255,255,255,0.7)' }} />
+                <Icon size={22} style={{ color: active ? '#0891b2' : 'rgba(255,255,255,0.7)' }} />
                 <span
                   className="text-[9px] font-semibold mt-0.5"
-                  style={{ color: active ? '#f97316' : 'rgba(255,255,255,0.7)' }}
+                  style={{ color: active ? '#0891b2' : 'rgba(255,255,255,0.7)' }}
                 >
                   {label}
                 </span>

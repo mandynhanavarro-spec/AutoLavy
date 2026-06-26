@@ -33,7 +33,7 @@ export default function LojaOnboarding() {
   const { tenant, profile } = useTenantContext()
   const orgId    = tenant?.id
   const segment  = tenant?.segment || 'geral'
-  const color    = '#f97316'
+  const color    = '#0891b2'
   const suggestions = SEGMENT_SUGGESTIONS[segment] || FALLBACK_SUGGESTIONS
 
   const [step, setStep]                     = useState(0)

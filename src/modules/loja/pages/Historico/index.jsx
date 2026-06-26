@@ -72,7 +72,7 @@ export default function Historico() {
   const { can }    = usePermissions()
   const canVoid    = can('can_void_sale')
   const orgId      = tenant?.id
-  const color      = '#f97316'
+  const color      = '#0891b2'
 
   const [filter, setFilter]           = useState('7dias')
   const [rawSales, setRawSales]       = useState([])
