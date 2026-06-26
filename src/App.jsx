@@ -332,10 +332,17 @@ export default function App() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (!mounted) return
       setSession(nextSession)
-      loadUserContext(nextSession)
+      if (
+        event === 'SIGNED_IN' ||
+        event === 'SIGNED_OUT' ||
+        event === 'INITIAL_SESSION'
+      ) {
+        loadUserContext(nextSession)
+      }
+      // TOKEN_REFRESHED não recarrega — evita desmontar o Router
     })
 
     return () => {
