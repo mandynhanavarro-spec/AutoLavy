@@ -37,7 +37,7 @@ export default function Dashboard() {
   const [regClosedMap, setRegClosedMap] = useState({})
 
   const orgId      = tenant?.id
-  const themeColor = '#7c3aed'
+  const themeColor = '#f97316'
 
   useEffect(() => {
     if (!orgId) return

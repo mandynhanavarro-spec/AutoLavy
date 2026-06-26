@@ -30,7 +30,7 @@ export default function Fechamento() {
   const { can }   = usePermissions()
   const canClose  = can('can_close_cash')
   const orgId     = tenant?.id
-  const color     = '#7c3aed'
+  const color     = '#f97316'
 
   const [todaySales, setTodaySales]       = useState([])
   const [closings, setClosings]           = useState([])

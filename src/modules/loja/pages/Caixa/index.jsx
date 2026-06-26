@@ -171,7 +171,7 @@ export default function Caixa() {
   const navigate = useNavigate()
 
   const orgId   = tenant?.id
-  const color   = '#7c3aed'
+  const color   = '#f97316'
   const segment = tenant?.segment || 'geral'
 
   /* register selection */

@@ -84,7 +84,7 @@ export default function Layout({ profile }) {
             ? 'text-white shadow-sm'
             : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
         }`}
-        style={active ? { backgroundColor: '#7c3aed' } : {}}
+        style={active ? { backgroundColor: '#f97316' } : {}}
       >
         <Icon size={17} />
         {label}
@@ -100,8 +100,8 @@ export default function Layout({ profile }) {
         to={path}
         className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors"
         style={{
-          color: active ? '#a78bfa' : '#c4b5fd',
-          backgroundColor: active ? '#7c3aed' : undefined,
+          color: active ? '#f97316' : '#c4b5fd',
+          backgroundColor: active ? '#f97316' : undefined,
         }}
       >
         <Icon size={17} />
@@ -130,7 +130,7 @@ export default function Layout({ profile }) {
             ) : (
               <div
                 className="w-10 h-10 rounded-xl flex items-center justify-center font-black text-white text-base shrink-0"
-                style={{ backgroundColor: '#1e1b4b' }}
+                style={{ backgroundColor: '#1a2e4a' }}
               >
                 {org?.name?.charAt(0) || 'L'}
               </div>
@@ -198,7 +198,7 @@ export default function Layout({ profile }) {
         {/* Mobile header */}
         <header
           className="md:hidden h-14 px-4 flex items-center justify-between text-white shadow-md shrink-0"
-          style={{ backgroundColor: '#1e1b4b' }}
+          style={{ backgroundColor: '#1a2e4a' }}
         >
           <button
             onClick={() => setDrawerOpen(true)}
@@ -246,7 +246,7 @@ export default function Layout({ profile }) {
                 className="flex flex-col items-center gap-1 py-3 rounded-lg"
                 style={{ background: 'white', border: '0.5px solid #e5e7eb' }}
               >
-                <ShoppingCart size={18} style={{ color: '#7c3aed' }} />
+                <ShoppingCart size={18} style={{ color: '#f97316' }} />
                 <span className="text-[9px] font-semibold text-gray-600">Nova venda</span>
               </button>
               <button
@@ -254,7 +254,7 @@ export default function Layout({ profile }) {
                 className="flex flex-col items-center gap-1 py-3 rounded-lg"
                 style={{ background: 'white', border: '0.5px solid #e5e7eb' }}
               >
-                <DollarSign size={18} style={{ color: '#7c3aed' }} />
+                <DollarSign size={18} style={{ color: '#f97316' }} />
                 <span className="text-[9px] font-semibold text-gray-600">Fechar caixa</span>
               </button>
             </div>
@@ -272,7 +272,7 @@ export default function Layout({ profile }) {
         {/* Mobile bottom bar */}
         <nav
           className="md:hidden fixed bottom-0 left-0 right-0 flex items-stretch h-16 z-20"
-          style={{ backgroundColor: '#1e1b4b' }}
+          style={{ backgroundColor: '#1a2e4a' }}
         >
           {MOBILE_BAR.map(({ path, icon: Icon, label }) => {
             const active = location.pathname === path
@@ -285,13 +285,13 @@ export default function Layout({ profile }) {
                 {active && (
                   <span
                     className="absolute top-1.5 w-1.5 h-1.5 rounded-full"
-                    style={{ backgroundColor: '#a78bfa' }}
+                    style={{ backgroundColor: '#f97316' }}
                   />
                 )}
-                <Icon size={22} style={{ color: active ? '#a78bfa' : '#6d5fd4' }} />
+                <Icon size={22} style={{ color: active ? '#f97316' : 'rgba(249,115,22,0.6)' }} />
                 <span
                   className="text-[9px] font-semibold mt-0.5"
-                  style={{ color: active ? '#a78bfa' : '#6d5fd4' }}
+                  style={{ color: active ? '#f97316' : 'rgba(249,115,22,0.6)' }}
                 >
                   {label}
                 </span>
@@ -314,7 +314,7 @@ export default function Layout({ profile }) {
           {/* Panel */}
           <div
             className="md:hidden fixed inset-y-0 left-0 w-72 z-40 flex flex-col"
-            style={{ backgroundColor: '#1e1b4b' }}
+            style={{ backgroundColor: '#1a2e4a' }}
           >
             {/* Drawer header */}
             <div className="px-4 py-4 flex items-center justify-between border-b border-white/10 shrink-0">
@@ -328,7 +328,7 @@ export default function Layout({ profile }) {
                 ) : (
                   <div
                     className="w-8 h-8 rounded-lg flex items-center justify-center font-black text-white text-sm shrink-0"
-                    style={{ backgroundColor: '#1e1b4b' }}
+                    style={{ backgroundColor: '#1a2e4a' }}
                   >
                     {org?.name?.charAt(0) || 'L'}
                   </div>
