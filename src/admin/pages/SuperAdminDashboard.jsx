@@ -1448,10 +1448,10 @@ export default function SuperAdminDashboard() {
                   <p className="text-xs text-gray-400 mt-0.5">Edite dados ou copie o link de acesso.</p>
                 </div>
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[980px]">
+                  <table className="w-full min-w-[600px]">
                     <thead style={{ background: '#f8f7ff' }}>
                       <tr className="text-left text-[10px] uppercase tracking-widest text-gray-400 font-black">
-                        {['Empresa','Responsável','E-mail','Produto','Plano','Expira em','Ações'].map(h => (
+                        {['Empresa','Responsável','Plano','Expira em','Ações'].map(h => (
                           <th key={h} className="px-5 py-4">{h}</th>
                         ))}
                       </tr>
@@ -1461,8 +1461,6 @@ export default function SuperAdminDashboard() {
                         <tr key={inv.id} className="border-t border-gray-50 text-sm hover:bg-gray-50/50">
                           <td className="px-5 py-3.5 font-bold text-gray-900">{inv.store_name}</td>
                           <td className="px-5 py-3.5 text-gray-500">{inv.responsible_name || '-'}</td>
-                          <td className="px-5 py-3.5 text-gray-500">{inv.contact_email || inv.login_email || '-'}</td>
-                          <td className="px-5 py-3.5 text-gray-500">{products.find(p => p.id === inv.product_id)?.display_name || PRODUCT_OPTIONS.find(o => o.value === inv.product_id)?.label || inv.product_id}</td>
                           <td className="px-5 py-3.5 text-gray-500">{plans.find(p => p.slug === inv.plan_type)?.name || inv.plan_type}</td>
                           <td className="px-5 py-3.5 text-gray-400 text-xs">{inv.expires_at ? new Date(inv.expires_at).toLocaleDateString('pt-BR') : '-'}</td>
                           <td className="px-5 py-3.5">
@@ -1485,7 +1483,7 @@ export default function SuperAdminDashboard() {
                         </tr>
                       ))}
                       {invites.length === 0 && (
-                        <tr><td colSpan="7" className="px-5 py-10 text-center text-sm text-gray-400">Nenhum convite pendente.</td></tr>
+                        <tr><td colSpan="5" className="px-5 py-10 text-center text-sm text-gray-400">Nenhum convite pendente.</td></tr>
                       )}
                     </tbody>
                   </table>
