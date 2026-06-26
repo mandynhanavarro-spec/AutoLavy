@@ -559,7 +559,7 @@ export default function Configuracoes() {
 
       {/* ════ Templates de Função ════ */}
       {isAdmin && (
-        <Section title="Templates de Função" icon={Sliders} color={color}>
+        <Section title="Cargos e Permissões" icon={Sliders} color={color}>
           <p className="text-xs text-gray-500">
             Crie templates de permissões personalizados para esta organização. Ficam disponíveis ao criar ou editar funcionários.
           </p>
@@ -571,7 +571,6 @@ export default function Configuracoes() {
                   <div>
                     <p className="text-sm font-bold text-gray-800">{t.name}</p>
                     {t.description && <p className="text-xs text-gray-400 mt-0.5">{t.description}</p>}
-                    <p className="text-[10px] text-gray-400 mt-0.5 capitalize">{t.base_role}</p>
                   </div>
                   <button
                     onClick={() => deleteTemplate(t.id)}
@@ -590,7 +589,7 @@ export default function Configuracoes() {
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 text-gray-500 text-sm font-bold hover:border-gray-400 transition-colors w-full justify-center"
           >
             <Plus size={14} />
-            Novo template
+            Novo cargo
           </button>
         </Section>
       )}
@@ -844,7 +843,7 @@ export default function Configuracoes() {
         <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-black text-gray-900">Novo template</h2>
+              <h2 className="text-lg font-black text-gray-900">Novo cargo</h2>
               <button onClick={() => setTplModal(false)}><X size={20} className="text-gray-400" /></button>
             </div>
 
@@ -866,19 +865,6 @@ export default function Configuracoes() {
                 placeholder="Opcional"
                 className={inputCls}
               />
-            </div>
-
-            <div>
-              <label className="text-[11px] font-bold text-gray-400 mb-1.5 block uppercase tracking-wide">Role base</label>
-              <select
-                value={tplForm.base_role}
-                onChange={e => setTplForm(f => ({ ...f, base_role: e.target.value }))}
-                className={inputCls}
-              >
-                <option value="operador">Operador</option>
-                <option value="gerente">Gerente</option>
-                <option value="admin">Admin</option>
-              </select>
             </div>
 
             <div>
