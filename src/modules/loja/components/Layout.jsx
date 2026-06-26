@@ -100,7 +100,7 @@ export default function Layout({ profile }) {
         to={path}
         className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors"
         style={{
-          color: active ? 'white' : '#c4b5fd',
+          color: active ? 'white' : 'rgba(255,255,255,0.7)',
           backgroundColor: active ? '#f97316' : undefined,
         }}
       >
@@ -291,10 +291,10 @@ export default function Layout({ profile }) {
                     style={{ backgroundColor: '#f97316' }}
                   />
                 )}
-                <Icon size={22} style={{ color: active ? '#f97316' : 'rgba(249,115,22,0.6)' }} />
+                <Icon size={22} style={{ color: active ? '#f97316' : 'rgba(255,255,255,0.7)' }} />
                 <span
                   className="text-[9px] font-semibold mt-0.5"
-                  style={{ color: active ? '#f97316' : 'rgba(249,115,22,0.6)' }}
+                  style={{ color: active ? '#f97316' : 'rgba(255,255,255,0.7)' }}
                 >
                   {label}
                 </span>
@@ -381,7 +381,7 @@ export default function Layout({ profile }) {
               <button
                 onClick={() => supabase.auth.signOut()}
                 className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors hover:bg-white/10"
-                style={{ color: '#c4b5fd' }}
+                style={{ color: 'rgba(255,255,255,0.7)' }}
               >
                 <LogOut size={17} />
                 Sair
