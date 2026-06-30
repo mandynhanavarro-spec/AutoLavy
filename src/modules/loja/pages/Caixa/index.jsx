@@ -36,7 +36,8 @@ function brl(val) {
 const METHODS = [
   { key: 'dinheiro', label: 'Dinheiro', Icon: Banknote },
   { key: 'pix',      label: 'PIX',      Icon: QrCode },
-  { key: 'cartao',   label: 'Cartão',   Icon: CreditCard },
+  { key: 'debito',   label: 'Débito',   Icon: CreditCard },
+  { key: 'credito',  label: 'Crédito',  Icon: CreditCard },
 ]
 
 function getSessionKey(orgId) {
@@ -166,6 +167,135 @@ function VariantSelectModal({ product, variants, onSelect, onClose }) {
   )
 }
 
+/* ─── MixedPaymentModal ───────────────────────────────────── */
+
+function MixedPaymentModal({ total, onConfirm, onClose }) {
+  const MIXED_OPTS = [
+    { key: 'dinheiro', label: 'Dinheiro' },
+    { key: 'pix',      label: 'PIX'      },
+    { key: 'debito',   label: 'Débito'   },
+    { key: 'credito',  label: 'Crédito'  },
+  ]
+
+  const [lines, setLines] = useState([
+    { method: 'dinheiro', amount: '' },
+    { method: 'pix',      amount: '' },
+  ])
+
+  const lastIdx    = lines.length - 1
+  const sumOthers  = lines.slice(0, lastIdx).reduce((s, l) => s + (parseFloat(l.amount) || 0), 0)
+  const lastAmount = total - sumOthers
+  const isValid    = lastAmount > 0.001
+  const allFilled  = lines.slice(0, lastIdx).every(l => (parseFloat(l.amount) || 0) > 0.001)
+  const canConfirm = isValid && allFilled
+
+  function updateLine(idx, field, value) {
+    setLines(prev => prev.map((l, i) => i === idx ? { ...l, [field]: value } : l))
+  }
+
+  function addLine() {
+    setLines(prev => [...prev, { method: 'dinheiro', amount: '' }])
+  }
+
+  function removeLine(idx) {
+    if (lines.length <= 2) return
+    setLines(prev => prev.filter((_, i) => i !== idx))
+  }
+
+  function handleConfirm() {
+    const result = [
+      ...lines.slice(0, lastIdx).map(l => ({ method: l.method, amount: parseFloat(l.amount) })),
+      { method: lines[lastIdx].method, amount: lastAmount },
+    ]
+    onConfirm(result)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-4">
+      <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl max-h-[85vh] overflow-y-auto space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-base font-black text-gray-900">Pagamento misto</h2>
+            <p className="text-xs text-gray-400 mt-0.5">Total: <span className="font-black text-gray-900">{brl(total)}</span></p>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center">
+            <X size={16} className="text-gray-400" />
+          </button>
+        </div>
+
+        <div className="space-y-2">
+          {lines.map((line, idx) => {
+            const isLast = idx === lastIdx
+            return (
+              <div key={idx} className="flex items-center gap-2">
+                <select
+                  value={line.method}
+                  onChange={e => updateLine(idx, 'method', e.target.value)}
+                  className="flex-1 px-3 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold outline-none bg-white"
+                >
+                  {MIXED_OPTS.map(o => (
+                    <option key={o.key} value={o.key}>{o.label}</option>
+                  ))}
+                </select>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={isLast ? Math.max(0, lastAmount).toFixed(2) : line.amount}
+                  onChange={e => !isLast && updateLine(idx, 'amount', e.target.value)}
+                  readOnly={isLast}
+                  placeholder="0,00"
+                  className={`w-28 px-3 py-2.5 rounded-xl border text-sm font-black text-right outline-none ${
+                    isLast
+                      ? 'bg-gray-100 border-gray-200 text-gray-500 cursor-not-allowed'
+                      : 'border-gray-200'
+                  }`}
+                />
+                {lines.length > 2 && (
+                  <button
+                    onClick={() => removeLine(idx)}
+                    className="w-8 h-8 rounded-xl bg-red-50 flex items-center justify-center shrink-0"
+                  >
+                    <X size={13} className="text-red-400" />
+                  </button>
+                )}
+              </div>
+            )
+          })}
+        </div>
+
+        <button
+          onClick={addLine}
+          className="w-full py-2 rounded-xl border border-dashed border-gray-300 text-xs font-bold text-gray-500 hover:border-gray-400 hover:text-gray-600 transition-colors"
+        >
+          + Adicionar forma de pagamento
+        </button>
+
+        <div className={`text-center text-xs font-bold py-2.5 rounded-xl ${isValid ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>
+          Total informado: {brl(sumOthers + Math.max(0, lastAmount))} de {brl(total)}
+        </div>
+
+        <div className="flex gap-2 pt-1">
+          <button
+            onClick={onClose}
+            className="flex-1 py-3 rounded-2xl bg-gray-100 text-gray-700 font-bold text-sm"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleConfirm}
+            disabled={!canConfirm}
+            className="flex-1 py-3 rounded-2xl text-white font-bold text-sm disabled:opacity-40 active:scale-[0.98] transition-transform"
+            style={{ backgroundColor: '#0891b2' }}
+          >
+            Confirmar
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ─── component ───────────────────────────────────────────── */
 
 export default function Caixa() {
@@ -208,6 +338,9 @@ export default function Caixa() {
   const [salesOrder, setSalesOrder]               = useState('hoje') // 'hoje' | 'semana'
   const [salesCount, setSalesCount]               = useState({})
   const [viewMode, setViewMode]                   = useState(() => localStorage.getItem('pdv_view') || 'lista')
+  const [isMixed, setIsMixed]                     = useState(false)
+  const [mixedModal, setMixedModal]               = useState(false)
+  const [confirmedMixedLines, setConfirmedMixedLines] = useState([])
 
   const cartItems = cart.reduce((s, i) => s + i.qty, 0)
   const cartTotal = cart.reduce((s, i) => s + itemPrice(i) * i.qty, 0)
@@ -347,6 +480,8 @@ export default function Caixa() {
     setCart([])
     setSearch('')
     setDone(null)
+    setIsMixed(false)
+    setConfirmedMixedLines([])
   }
 
   function openMov(type) {
@@ -413,7 +548,7 @@ export default function Caixa() {
           user_id:        profile?.id ?? null,
           register_id:    activeRegister?.id ?? null,
           total_amount:   cartTotal,
-          payment_method: payment,
+          payment_method: isMixed ? 'misto' : payment,
         })
         .select('id')
         .single()
@@ -432,6 +567,12 @@ export default function Caixa() {
         }))
       )
       if (e2) throw e2
+
+      const paymentsRows = isMixed
+        ? confirmedMixedLines.map(l => ({ sale_id: sale.id, payment_method: l.method, amount: l.amount }))
+        : [{ sale_id: sale.id, payment_method: payment, amount: cartTotal }]
+      const { error: e3 } = await supabase.from('sale_payments').insert(paymentsRows)
+      if (e3) throw e3
 
       /* stock deduction: variants → product_variants; regular → products */
       const variantItems = cart.filter(i => i.variant)
@@ -475,7 +616,7 @@ export default function Caixa() {
         })
       }
 
-      setDone({ total: cartTotal, payment })
+      setDone({ total: cartTotal, payment: isMixed ? 'misto' : payment })
       setCart([])
       setCartOpen(false)
     } catch (err) {
@@ -559,12 +700,12 @@ export default function Caixa() {
         <div>
           <h2 className="text-2xl font-black text-gray-900">Venda registrada!</h2>
           <p className="text-gray-500 text-sm mt-1">
-            {brl(done.total)} · {METHODS.find(m => m.key === done.payment)?.label}
+            {brl(done.total)} · {done.payment === 'misto' ? 'Pagamento misto' : METHODS.find(m => m.key === done.payment)?.label}
           </p>
         </div>
         <div className="flex flex-col gap-3 w-full max-w-xs mt-2">
           <button
-            onClick={() => setDone(null)}
+            onClick={() => { setDone(null); setIsMixed(false); setConfirmedMixedLines([]) }}
             className="w-full py-3 rounded-2xl text-white font-bold shadow-md"
             style={{ backgroundColor: color }}
           >
@@ -674,7 +815,7 @@ export default function Caixa() {
       {/* ── Mobile quick actions ── */}
       <div className="md:hidden px-4 pb-3 grid grid-cols-2 gap-2.5">
         <button
-          onClick={() => { setCart([]); setDone(null); setSearch(''); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
+          onClick={() => { setCart([]); setDone(null); setSearch(''); setIsMixed(false); setConfirmedMixedLines([]); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
           className="flex flex-col items-center justify-center gap-1.5 rounded-[10px] p-3"
           style={{ backgroundColor: '#0891b2' }}
         >
@@ -1105,22 +1246,35 @@ export default function Caixa() {
             </div>
           )}
 
-          <div className="px-4 pt-2 pb-1 flex gap-2">
-            {METHODS.map(({ key, label, Icon }) => (
-              <button
-                key={key}
-                onClick={() => setPayment(key)}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-all border ${
-                  payment === key
-                    ? 'text-white border-transparent'
-                    : 'text-gray-500 border-gray-200 bg-gray-50 hover:bg-gray-100'
-                }`}
-                style={payment === key ? { backgroundColor: color } : {}}
-              >
-                <Icon size={12} />
-                {label}
-              </button>
-            ))}
+          <div className="px-4 pt-2 pb-1 space-y-1.5">
+            <div className="flex gap-2">
+              {METHODS.map(({ key, label, Icon }) => (
+                <button
+                  key={key}
+                  onClick={() => { setPayment(key); setIsMixed(false); setConfirmedMixedLines([]) }}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-all border ${
+                    !isMixed && payment === key
+                      ? 'text-white border-transparent'
+                      : 'text-gray-500 border-gray-200 bg-gray-50 hover:bg-gray-100'
+                  }`}
+                  style={!isMixed && payment === key ? { backgroundColor: color } : {}}
+                >
+                  <Icon size={12} />
+                  {label}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setMixedModal(true)}
+              className={`w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-all border ${
+                isMixed
+                  ? 'text-white border-transparent'
+                  : 'text-gray-500 border-gray-200 bg-gray-50 hover:bg-gray-100'
+              }`}
+              style={isMixed ? { backgroundColor: color } : {}}
+            >
+              {isMixed ? `Misto ✓ (${confirmedMixedLines.length} formas)` : 'Pagamento misto'}
+            </button>
           </div>
 
           <div className="px-4 pb-3 pt-1 flex items-center gap-3">
@@ -1147,6 +1301,15 @@ export default function Caixa() {
           variants={variantModal.variants}
           onSelect={variant => { addItem(variantModal.product, variant); setVariantModal(null) }}
           onClose={() => setVariantModal(null)}
+        />
+      )}
+
+      {/* ── Mixed payment modal ───────────────────────────── */}
+      {mixedModal && (
+        <MixedPaymentModal
+          total={cartTotal}
+          onConfirm={lines => { setConfirmedMixedLines(lines); setIsMixed(true); setMixedModal(false) }}
+          onClose={() => setMixedModal(false)}
         />
       )}
     </div>
