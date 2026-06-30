@@ -211,7 +211,8 @@ export default function Historico() {
     setLoadingItem(null)
   }
 
-  const totalPeriod = sales.reduce((s, r) => s + Number(r.total_amount), 0)
+  const validSales  = sales.filter(s => s.status !== 'voided')
+  const totalPeriod = validSales.reduce((s, r) => s + Number(r.total_amount), 0)
 
   const diferenca = addItemsCart.reduce((s, i) =>
     s + Number(i.product.price) * i.qty, 0)
@@ -373,7 +374,7 @@ export default function Historico() {
       <div className="mb-4">
         <h1 className="text-xl font-black text-gray-900">Histórico de vendas</h1>
         <p className="text-xs text-gray-400 mt-0.5">
-          {loading ? '...' : `${sales.length} venda${sales.length !== 1 ? 's' : ''} no período`}
+          {loading ? '...' : `${validSales.length} venda${validSales.length !== 1 ? 's' : ''} no período`}
         </p>
       </div>
 
@@ -422,7 +423,7 @@ export default function Historico() {
       )}
 
       {/* Summary strip */}
-      {!loading && sales.length > 0 && (
+      {!loading && validSales.length > 0 && (
         <div className="mb-4 bg-white rounded-2xl px-5 py-4 border border-gray-100 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-[11px] text-gray-400 font-semibold uppercase tracking-wide">Total do período</p>
@@ -430,7 +431,7 @@ export default function Historico() {
           </div>
           <div className="text-right">
             <p className="text-[11px] text-gray-400 font-semibold uppercase tracking-wide">Transações</p>
-            <p className="text-2xl font-black text-gray-900">{sales.length}</p>
+            <p className="text-2xl font-black text-gray-900">{validSales.length}</p>
           </div>
         </div>
       )}
