@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import {
   ChevronDown, ChevronRight, ShoppingCart, RotateCcw,
-  ArrowDownCircle, ArrowUpCircle,
+  ArrowDownCircle, ArrowUpCircle, Plus, X,
 } from 'lucide-react'
 import { supabase } from '../../../../shared/lib/supabase'
 import { useTenantContext } from '../../../../core/contexts/TenantContext'
@@ -92,6 +92,13 @@ export default function Historico() {
   const [registers, setRegisters]     = useState([])
   const [selectedReg, setSelectedReg] = useState('all')
 
+  const [addItemsTarget, setAddItemsTarget]   = useState(null)
+  const [addItemsSearch, setAddItemsSearch]   = useState('')
+  const [addItemsCart, setAddItemsCart]       = useState([])
+  const [addItemsPayment, setAddItemsPayment] = useState('pix')
+  const [addItemsLoading, setAddItemsLoading] = useState(false)
+  const [products, setProducts]               = useState([])
+
   /* fetch registers once */
   useEffect(() => {
     if (!orgId) return
@@ -103,7 +110,7 @@ export default function Historico() {
   }, [orgId])
 
   /* fetch sales + movements on period or org change */
-  useEffect(() => {
+  function load() {
     if (!orgId) return
     setLoading(true)
     setExpanded(null)
@@ -127,7 +134,22 @@ export default function Historico() {
       setRawMovs(movsRes.data || [])
       setLoading(false)
     })
+  }
+
+  useEffect(() => {
+    load()
   }, [orgId, filter])
+
+  /* fetch products once for the "add forgotten items" picker */
+  useEffect(() => {
+    if (!orgId) return
+    supabase
+      .from('products')
+      .select('id, name, price, stock_quantity, cost_price')
+      .eq('org_id', orgId)
+      .order('name')
+      .then(({ data }) => setProducts(data || []))
+  }, [orgId])
 
   /* reset expanded when switching register filter */
   useEffect(() => { setExpanded(null) }, [selectedReg])
@@ -184,6 +206,78 @@ export default function Historico() {
   }
 
   const totalPeriod = sales.reduce((s, r) => s + Number(r.total_amount), 0)
+
+  const diferenca = addItemsCart.reduce((s, i) =>
+    s + Number(i.product.price) * i.qty, 0)
+
+  async function confirmAddItems() {
+    if (!addItemsCart.length || !addItemsTarget) return
+    setAddItemsLoading(true)
+    try {
+      // 1. Inserir novos sale_items (id gerado automaticamente pelo Supabase)
+      const newItems = addItemsCart.map(i => ({
+        org_id:     orgId,
+        sale_id:    addItemsTarget.id,
+        product_id: i.product.id,
+        quantity:   i.qty,
+        unit_price: Number(i.product.price),
+        unit_cost:  Number(i.product.cost_price || 0),
+        subtotal:   Number(i.product.price) * i.qty,
+        variant_id: null,
+      }))
+      const { error: e1 } = await supabase
+        .from('sale_items')
+        .insert(newItems)
+      if (e1) throw e1
+
+      // 2. Atualizar total_amount e payment_method da venda
+      const novoTotal = Number(addItemsTarget.total_amount) + diferenca
+      const novoMethod = addItemsTarget.payment_method === addItemsPayment
+        ? addItemsTarget.payment_method
+        : 'misto'
+      const { error: e2 } = await supabase
+        .from('sales')
+        .update({ total_amount: novoTotal, payment_method: novoMethod })
+        .eq('id', addItemsTarget.id)
+        .eq('org_id', orgId)
+      if (e2) throw e2
+
+      // 3. Inserir pagamento da diferença em sale_payments
+      const { error: e3 } = await supabase
+        .from('sale_payments')
+        .insert({
+          sale_id:        addItemsTarget.id,
+          payment_method: addItemsPayment,
+          amount:         diferenca,
+        })
+      if (e3) throw e3
+
+      // 4. Descontar estoque manualmente
+      for (const item of addItemsCart) {
+        const novoEstoque = Number(item.product.stock_quantity) - item.qty
+        await supabase
+          .from('products')
+          .update({ stock_quantity: novoEstoque })
+          .eq('id', item.product.id)
+          .eq('org_id', orgId)
+      }
+
+      // 5. Fechar modal e recarregar
+      setItemsMap(prev => {
+        const next = { ...prev }
+        delete next[addItemsTarget.id]
+        return next
+      })
+      setAddItemsTarget(null)
+      setAddItemsCart([])
+      setAddItemsSearch('')
+      load()
+    } catch (err) {
+      alert('Erro ao adicionar itens: ' + err.message)
+    } finally {
+      setAddItemsLoading(false)
+    }
+  }
 
   return (
     <div className="p-4 md:p-6">
@@ -365,6 +459,24 @@ export default function Historico() {
 
                   {canVoid && (
                     <button
+                      onClick={e => {
+                        e.stopPropagation()
+                        setAddItemsTarget(sale)
+                        setAddItemsCart([])
+                        setAddItemsSearch('')
+                        setAddItemsPayment('pix')
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl
+                        text-xs font-bold bg-amber-50 text-amber-700 border
+                        border-amber-200 hover:bg-amber-100 transition-colors"
+                    >
+                      <Plus size={13} />
+                      Adicionar itens esquecidos
+                    </button>
+                  )}
+
+                  {canVoid && (
+                    <button
                       onClick={e => { e.stopPropagation(); alert('Estorno de venda em desenvolvimento.') }}
                       title="Estornar venda"
                       className="w-8 h-8 rounded-xl bg-red-50 hover:bg-red-100 flex items-center justify-center shrink-0 transition-colors"
@@ -416,6 +528,170 @@ export default function Historico() {
               </div>
             )
           })}
+        </div>
+      )}
+
+      {addItemsTarget && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-end
+          sm:items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl
+            max-h-[90vh] overflow-y-auto space-y-4 p-5">
+
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-black text-gray-900">
+                  Adicionar itens esquecidos
+                </h2>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Total atual: {brl(addItemsTarget.total_amount)}
+                </p>
+              </div>
+              <button
+                onClick={() => setAddItemsTarget(null)}
+                className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center"
+              >
+                <X size={16} className="text-gray-500" />
+              </button>
+            </div>
+
+            {/* Busca */}
+            <input
+              type="text"
+              placeholder="Buscar produto..."
+              value={addItemsSearch}
+              onChange={e => setAddItemsSearch(e.target.value)}
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200
+                text-sm outline-none focus:ring-2 focus:ring-amber-400"
+            />
+
+            {/* Lista de produtos filtrados */}
+            <div className="space-y-1.5 max-h-40 overflow-y-auto">
+              {products
+                .filter(p => p.name.toLowerCase()
+                  .includes(addItemsSearch.toLowerCase()) && p.stock_quantity > 0)
+                .slice(0, 10)
+                .map(p => {
+                  const inCart = addItemsCart.find(i => i.product.id === p.id)
+                  return (
+                    <div key={p.id} className="flex items-center justify-between
+                      bg-gray-50 rounded-xl px-3 py-2">
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">{p.name}</p>
+                        <p className="text-xs text-gray-400">
+                          {brl(p.price)} · {p.stock_quantity} un.
+                        </p>
+                      </div>
+                      {inCart ? (
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setAddItemsCart(prev =>
+                              prev.map(i => i.product.id === p.id
+                                ? { ...i, qty: Math.max(1, i.qty - 1) }
+                                : i))}
+                            className="w-6 h-6 rounded-lg bg-white border flex
+                              items-center justify-center text-gray-600 font-bold"
+                          >−</button>
+                          <span className="text-sm font-black w-4 text-center">
+                            {inCart.qty}
+                          </span>
+                          <button
+                            onClick={() => setAddItemsCart(prev =>
+                              prev.map(i => i.product.id === p.id
+                                ? { ...i, qty: Math.min(p.stock_quantity, i.qty + 1) }
+                                : i))}
+                            className="w-6 h-6 rounded-lg bg-white border flex
+                              items-center justify-center text-gray-600 font-bold"
+                          >+</button>
+                          <button
+                            onClick={() => setAddItemsCart(prev =>
+                              prev.filter(i => i.product.id !== p.id))}
+                            className="w-6 h-6 rounded-lg bg-red-50 flex items-center
+                              justify-center"
+                          >
+                            <X size={11} className="text-red-400" />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setAddItemsCart(prev =>
+                            [...prev, { product: p, qty: 1 }])}
+                          className="w-7 h-7 rounded-xl flex items-center
+                            justify-center text-white"
+                          style={{ backgroundColor: '#0891b2' }}
+                        >
+                          <Plus size={14} />
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
+            </div>
+
+            {/* Diferença */}
+            {addItemsCart.length > 0 && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl
+                px-4 py-3 flex justify-between items-center">
+                <span className="text-sm font-bold text-amber-700">
+                  Diferença a cobrar
+                </span>
+                <span className="text-base font-black text-amber-700">
+                  {brl(diferenca)}
+                </span>
+              </div>
+            )}
+
+            {/* Forma de pagamento da diferença */}
+            {addItemsCart.length > 0 && (
+              <div>
+                <p className="text-xs font-bold text-gray-400 uppercase
+                  tracking-wide mb-2">Forma de pagamento da diferença</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { key: 'dinheiro', label: 'Dinheiro' },
+                    { key: 'pix',     label: 'PIX' },
+                    { key: 'debito',  label: 'Débito' },
+                    { key: 'credito', label: 'Crédito' },
+                  ].map(({ key, label }) => (
+                    <button
+                      key={key}
+                      onClick={() => setAddItemsPayment(key)}
+                      className="py-2 rounded-xl text-xs font-bold border transition-all"
+                      style={addItemsPayment === key
+                        ? { backgroundColor: '#0891b2', color: 'white', borderColor: '#0891b2' }
+                        : { backgroundColor: 'white', color: '#6b7280', borderColor: '#e5e7eb' }
+                      }
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Botões */}
+            <div className="flex gap-2">
+              <button
+                onClick={() => setAddItemsTarget(null)}
+                className="flex-1 py-3 rounded-2xl bg-gray-100
+                  text-gray-700 font-bold text-sm"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmAddItems}
+                disabled={!addItemsCart.length || addItemsLoading}
+                className="flex-1 py-3 rounded-2xl text-white font-bold
+                  text-sm disabled:opacity-40"
+                style={{ backgroundColor: '#0891b2' }}
+              >
+                {addItemsLoading
+                  ? 'Salvando...'
+                  : `Confirmar — ${brl(diferenca)}`}
+              </button>
+            </div>
+
+          </div>
         </div>
       )}
     </div>
