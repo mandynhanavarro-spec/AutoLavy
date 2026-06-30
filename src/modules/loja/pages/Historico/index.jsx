@@ -99,6 +99,12 @@ export default function Historico() {
   const [addItemsLoading, setAddItemsLoading] = useState(false)
   const [products, setProducts]               = useState([])
 
+  const [voidTarget, setVoidTarget]     = useState(null)
+  const [voidPassword, setVoidPassword] = useState('')
+  const [voidReason, setVoidReason]     = useState('')
+  const [voidError, setVoidError]       = useState('')
+  const [voidLoading, setVoidLoading]   = useState(false)
+
   /* fetch registers once */
   useEffect(() => {
     if (!orgId) return
@@ -120,7 +126,7 @@ export default function Historico() {
     Promise.all([
       supabase
         .from('sales')
-        .select('id, total_amount, payment_method, register_id, created_at, profiles!user_id(full_name), sale_payments(payment_method, amount)')
+        .select('id, total_amount, payment_method, register_id, created_at, status, voided_at, profiles!user_id(full_name), sale_payments(payment_method, amount)')
         .eq('org_id', orgId)
         .gte('created_at', start)
         .order('created_at', { ascending: false }),
@@ -279,6 +285,87 @@ export default function Historico() {
     }
   }
 
+  async function confirmVoid() {
+    if (!voidPassword.trim()) {
+      setVoidError('Digite sua senha para confirmar.')
+      return
+    }
+    setVoidLoading(true)
+    setVoidError('')
+    try {
+      // 1. Verificar senha via re-autenticação
+      const { data: { user } } = await supabase.auth.getUser()
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: voidPassword,
+      })
+      if (authError) {
+        setVoidError('Senha incorreta. Tente novamente.')
+        setVoidLoading(false)
+        return
+      }
+
+      // 2. Buscar itens da venda para devolver estoque
+      const { data: items } = await supabase
+        .from('sale_items')
+        .select('product_id, quantity, variant_id')
+        .eq('sale_id', voidTarget.id)
+
+      // 3. Devolver estoque de cada item
+      for (const item of (items || [])) {
+        if (item.variant_id) {
+          const { data: v } = await supabase
+            .from('product_variants')
+            .select('stock_quantity')
+            .eq('id', item.variant_id)
+            .single()
+          if (v) {
+            await supabase
+              .from('product_variants')
+              .update({ stock_quantity: v.stock_quantity + item.quantity })
+              .eq('id', item.variant_id)
+          }
+        } else {
+          const { data: p } = await supabase
+            .from('products')
+            .select('stock_quantity')
+            .eq('id', item.product_id)
+            .single()
+          if (p) {
+            await supabase
+              .from('products')
+              .update({ stock_quantity: p.stock_quantity + item.quantity })
+              .eq('id', item.product_id)
+              .eq('org_id', orgId)
+          }
+        }
+      }
+
+      // 4. Marcar venda como estornada
+      const { error: voidUpdateError } = await supabase
+        .from('sales')
+        .update({
+          status:      'voided',
+          voided_at:   new Date().toISOString(),
+          voided_by:   user.id,
+          void_reason: voidReason.trim() || null,
+        })
+        .eq('id', voidTarget.id)
+        .eq('org_id', orgId)
+      if (voidUpdateError) throw voidUpdateError
+
+      // 5. Fechar modal e recarregar
+      setVoidTarget(null)
+      setVoidPassword('')
+      setVoidReason('')
+      load()
+    } catch (err) {
+      setVoidError('Erro ao estornar: ' + err.message)
+    } finally {
+      setVoidLoading(false)
+    }
+  }
+
   return (
     <div className="p-4 md:p-6">
 
@@ -418,7 +505,9 @@ export default function Historico() {
             return (
               <div
                 key={`sale-${sale.id}`}
-                className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"
+                className={`bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden ${
+                  sale.status === 'voided' ? 'opacity-50' : ''
+                }`}
               >
                 {/* Row */}
                 <button
@@ -435,6 +524,11 @@ export default function Historico() {
                       <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-lg ${methodCls}`}>
                         {METHOD_LABEL[sale.payment_method] || sale.payment_method}
                       </span>
+                      {sale.status === 'voided' && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-red-100 text-red-600">
+                          Estornada
+                        </span>
+                      )}
                       {/* Badge do caixa — só em modo "Todos os caixas" com 2+ caixas */}
                       {registers.length >= 2 && selectedReg === 'all' && regInfo && (
                         <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-lg shrink-0 ${regInfo.cls}`}>
@@ -457,7 +551,7 @@ export default function Historico() {
                     </p>
                   </div>
 
-                  {canVoid && (
+                  {sale.status !== 'voided' && canVoid && (
                     <button
                       onClick={e => {
                         e.stopPropagation()
@@ -475,9 +569,15 @@ export default function Historico() {
                     </button>
                   )}
 
-                  {canVoid && (
+                  {sale.status !== 'voided' && canVoid && (
                     <button
-                      onClick={e => { e.stopPropagation(); alert('Estorno de venda em desenvolvimento.') }}
+                      onClick={e => {
+                        e.stopPropagation()
+                        setVoidTarget(sale)
+                        setVoidPassword('')
+                        setVoidReason('')
+                        setVoidError('')
+                      }}
                       title="Estornar venda"
                       className="w-8 h-8 rounded-xl bg-red-50 hover:bg-red-100 flex items-center justify-center shrink-0 transition-colors"
                     >
@@ -688,6 +788,99 @@ export default function Historico() {
                 {addItemsLoading
                   ? 'Salvando...'
                   : `Confirmar — ${brl(diferenca)}`}
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {voidTarget && (
+        <div className="fixed inset-0 z-50 flex items-center
+          justify-center bg-black/40 px-4">
+          <div className="bg-white rounded-2xl p-6 w-full
+            max-w-sm shadow-xl space-y-4">
+
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-black text-gray-900">
+                Estornar venda
+              </h3>
+              <button onClick={() => setVoidTarget(null)}>
+                <X size={20} className="text-gray-400" />
+              </button>
+            </div>
+
+            {/* Aviso */}
+            <div className="bg-red-50 border border-red-200
+              rounded-xl p-3">
+              <p className="text-sm text-red-700 font-semibold">
+                Venda #{voidTarget.id.slice(-6).toUpperCase()}
+                {' '}— {brl(voidTarget.total_amount)}
+              </p>
+              <p className="text-xs text-red-500 mt-1">
+                O estoque será devolvido e a venda ficará
+                marcada como estornada.
+              </p>
+            </div>
+
+            {/* Motivo (opcional) */}
+            <div>
+              <label className="text-[11px] font-bold text-gray-400
+                uppercase tracking-wide block mb-1.5">
+                Motivo (opcional)
+              </label>
+              <input
+                type="text"
+                value={voidReason}
+                onChange={e => setVoidReason(e.target.value)}
+                placeholder="Ex: produto danificado, erro de cobrança..."
+                className="w-full px-3 py-2.5 rounded-xl border
+                  border-gray-200 text-sm outline-none
+                  focus:ring-2 focus:ring-red-400"
+              />
+            </div>
+
+            {/* Senha */}
+            <div>
+              <label className="text-[11px] font-bold text-gray-400
+                uppercase tracking-wide block mb-1.5">
+                Confirme sua senha
+              </label>
+              <input
+                type="password"
+                value={voidPassword}
+                onChange={e => setVoidPassword(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && confirmVoid()}
+                placeholder="Digite sua senha..."
+                className="w-full px-3 py-2.5 rounded-xl border
+                  border-gray-200 text-sm outline-none
+                  focus:ring-2 focus:ring-red-400"
+                autoFocus
+              />
+            </div>
+
+            {/* Erro */}
+            {voidError && (
+              <p className="text-xs text-red-500">{voidError}</p>
+            )}
+
+            {/* Botões */}
+            <div className="flex gap-2">
+              <button
+                onClick={() => setVoidTarget(null)}
+                className="flex-1 py-2.5 rounded-xl border
+                  border-gray-200 text-sm font-bold text-gray-600"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmVoid}
+                disabled={voidLoading}
+                className="flex-1 py-2.5 rounded-xl bg-red-500
+                  text-white text-sm font-bold disabled:opacity-50"
+              >
+                {voidLoading ? 'Estornando...' : 'Confirmar estorno'}
               </button>
             </div>
 
