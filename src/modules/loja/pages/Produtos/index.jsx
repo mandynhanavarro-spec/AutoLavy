@@ -670,9 +670,7 @@ export default function Produtos() {
   async function saveCategory() {
     if (!catForm.name.trim()) return
     setCatSaving(true)
-    const segmentId = orgSegments.length <= 1
-      ? (orgSegments[0]?.id || segment || 'geral')
-      : (catForm.segment_id || segment || 'geral')
+    const segmentId = catForm.segment_id || 'geral'
     if (catModal === 'new') {
       await supabase.from('categories').insert({
         org_id: orgId,
@@ -1121,41 +1119,20 @@ export default function Produtos() {
                   className={fieldCls}
                 />
               </div>
-              {orgSegments.length >= 2 && (
-                <div>
-                  <label className="text-[11px] font-bold text-gray-500 mb-2 block">Tipo de produto</label>
-                  <div className="space-y-1.5">
-                    {orgSegments.map(s => {
-                      const copy = SEGMENT_COPY[s.id]
-                      const active = catForm.segment_id === s.id
-                      return (
-                        <label key={s.id} className={`flex items-start gap-3 rounded-xl px-3 py-3 cursor-pointer border transition-colors ${
-                          active ? 'bg-violet-50 border-violet-300' : 'bg-gray-50 border-gray-200 hover:border-gray-300'
-                        }`}>
-                          <input
-                            type="radio"
-                            name="cat-segment"
-                            value={s.id}
-                            checked={active}
-                            onChange={() => setCatForm(f => ({ ...f, segment_id: s.id }))}
-                            className="accent-violet-600 mt-0.5 shrink-0"
-                          />
-                          <div>
-                            <p className={`text-sm font-bold leading-tight ${active ? 'text-violet-700' : 'text-gray-700'}`}>
-                              {copy?.title ?? s.name}
-                            </p>
-                            {copy?.desc && (
-                              <p className={`text-xs mt-0.5 ${active ? 'text-violet-500' : 'text-gray-400'}`}>
-                                {copy.desc}
-                              </p>
-                            )}
-                          </div>
-                        </label>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
+              <div>
+                <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wide block mb-1.5">
+                  Tipo de produto
+                </label>
+                <select
+                  value={catForm.segment_id || 'geral'}
+                  onChange={e => setCatForm(f => ({ ...f, segment_id: e.target.value }))}
+                  className={fieldCls}
+                >
+                  <option value="geral">Produto simples — preço e estoque únicos</option>
+                  <option value="moda">Roupa / Calçado — variação de cor e tamanho</option>
+                  <option value="kit">Kit / Pacote — variação de tamanho e pacote</option>
+                </select>
+              </div>
             </div>
 
             <div className="flex gap-3 pt-1">
