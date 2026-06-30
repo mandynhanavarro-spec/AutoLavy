@@ -25,6 +25,19 @@ function todayStart() {
   const d = new Date(); d.setHours(0, 0, 0, 0); return d
 }
 
+function sumByMethod(sales, method) {
+  return sales.reduce((total, sale) => {
+    if (sale.payment_method === method) return total + Number(sale.total_amount)
+    if (sale.payment_method === 'misto') {
+      const partial = (sale.sale_payments || [])
+        .filter(p => p.payment_method === method)
+        .reduce((s, p) => s + Number(p.amount), 0)
+      return total + partial
+    }
+    return total
+  }, 0)
+}
+
 /* ── component ───────────────────────────────────────────── */
 
 export default function Fechamento() {
@@ -61,7 +74,7 @@ export default function Fechamento() {
     /* today's sales */
     const { data: salesData } = await supabase
       .from('sales')
-      .select('id, total_amount, payment_method, register_id')
+      .select('id, total_amount, payment_method, register_id, sale_payments(payment_method, amount)')
       .eq('org_id', orgId)
       .gte('created_at', todayStart().toISOString())
     setTodaySales(salesData || [])
@@ -70,12 +83,18 @@ export default function Fechamento() {
     const regMap = {}
     for (const s of (salesData || [])) {
       const rid = s.register_id || '__unknown__'
-      if (!regMap[rid]) regMap[rid] = { total: 0, dinheiro: 0, pix: 0, cartao: 0, count: 0 }
+      if (!regMap[rid]) regMap[rid] = { total: 0, dinheiro: 0, pix: 0, debito: 0, credito: 0, count: 0 }
       regMap[rid].total += Number(s.total_amount)
       regMap[rid].count++
-      if (s.payment_method === 'dinheiro') regMap[rid].dinheiro += Number(s.total_amount)
-      if (s.payment_method === 'pix')      regMap[rid].pix      += Number(s.total_amount)
-      if (s.payment_method === 'cartao')   regMap[rid].cartao   += Number(s.total_amount)
+      if (s.payment_method === 'misto') {
+        ;(s.sale_payments || []).forEach(p => {
+          if (regMap[rid][p.payment_method] !== undefined) {
+            regMap[rid][p.payment_method] += Number(p.amount)
+          }
+        })
+      } else if (regMap[rid][s.payment_method] !== undefined) {
+        regMap[rid][s.payment_method] += Number(s.total_amount)
+      }
     }
     setRegSalesMap(regMap)
 
@@ -96,7 +115,7 @@ export default function Fechamento() {
     /* closings — may fail if table / column doesn't exist yet */
     const { data: closingsData, error } = await supabase
       .from('cash_closings')
-      .select('id, date, register_id, total_sales, total_transactions, total_dinheiro, total_pix, total_cartao, closed_at')
+      .select('id, date, register_id, total_sales, total_transactions, total_dinheiro, total_pix, total_debito, total_credito, closed_at')
       .eq('org_id', orgId)
       .order('closed_at', { ascending: false })
       .limit(30)
@@ -127,9 +146,10 @@ export default function Fechamento() {
 
   /* ── totals (used for single-register path) */
   const totalToday    = todaySales.reduce((s, r) => s + Number(r.total_amount), 0)
-  const totalDinheiro = todaySales.filter(s => s.payment_method === 'dinheiro').reduce((s, r) => s + Number(r.total_amount), 0)
-  const totalPix      = todaySales.filter(s => s.payment_method === 'pix').reduce((s, r) => s + Number(r.total_amount), 0)
-  const totalCartao   = todaySales.filter(s => s.payment_method === 'cartao').reduce((s, r) => s + Number(r.total_amount), 0)
+  const totalDinheiro = sumByMethod(todaySales, 'dinheiro')
+  const totalPix      = sumByMethod(todaySales, 'pix')
+  const totalDebito   = sumByMethod(todaySales, 'debito')
+  const totalCredito  = sumByMethod(todaySales, 'credito')
 
   /* ── single-register close */
   async function fecharCaixa() {
@@ -147,7 +167,8 @@ export default function Fechamento() {
       total_transactions: todaySales.length,
       total_dinheiro:     totalDinheiro,
       total_pix:          totalPix,
-      total_cartao:       totalCartao,
+      total_debito:       totalDebito,
+      total_credito:      totalCredito,
     })
     setClosing(null)
     if (error) { alert('Erro ao fechar caixa: ' + error.message); return }
@@ -171,7 +192,8 @@ export default function Fechamento() {
       total_transactions: data.count,
       total_dinheiro:     data.dinheiro,
       total_pix:          data.pix,
-      total_cartao:       data.cartao,
+      total_debito:       data.debito,
+      total_credito:      data.credito,
     })
     setClosing(null)
     if (error) { alert('Erro: ' + error.message); return }
@@ -184,7 +206,7 @@ export default function Fechamento() {
     setClosing('all')
     for (const reg of registers) {
       if (closedToday[reg.id]) continue
-      const data = regSalesMap[reg.id] || { total: 0, dinheiro: 0, pix: 0, cartao: 0, count: 0 }
+      const data = regSalesMap[reg.id] || { total: 0, dinheiro: 0, pix: 0, debito: 0, credito: 0, count: 0 }
       const { error } = await supabase.from('cash_closings').insert({
         org_id:             orgId,
         closed_by:          profile?.id ?? null,
@@ -194,7 +216,8 @@ export default function Fechamento() {
         total_transactions: data.count,
         total_dinheiro:     data.dinheiro,
         total_pix:          data.pix,
-        total_cartao:       data.cartao,
+        total_debito:       data.debito,
+        total_credito:      data.credito,
       })
       if (error) { alert(`Erro ao fechar ${reg.name}: ${error.message}`); break }
     }
@@ -353,18 +376,22 @@ SELECT pg_notify('pgrst', 'reload schema');`}
                 </div>
 
                 {/* Payment breakdown */}
-                <div className="grid grid-cols-3 gap-2 px-4 pb-3">
+                <div className="grid grid-cols-2 gap-2 px-4 pb-3">
                   <div className="bg-green-50 rounded-xl p-2.5">
                     <p className="text-[9px] font-bold text-green-600 uppercase tracking-wide">Dinheiro</p>
                     <p className="text-xs font-black text-gray-900 mt-0.5">{brl(data.dinheiro)}</p>
                   </div>
-                  <div className="bg-blue-50 rounded-xl p-2.5">
-                    <p className="text-[9px] font-bold text-blue-600 uppercase tracking-wide">PIX</p>
+                  <div className="bg-sky-50 rounded-xl p-2.5">
+                    <p className="text-[9px] font-bold text-sky-600 uppercase tracking-wide">PIX</p>
                     <p className="text-xs font-black text-gray-900 mt-0.5">{brl(data.pix)}</p>
                   </div>
-                  <div className="bg-violet-50 rounded-xl p-2.5">
-                    <p className="text-[9px] font-bold text-violet-600 uppercase tracking-wide">Cartão</p>
-                    <p className="text-xs font-black text-gray-900 mt-0.5">{brl(data.cartao)}</p>
+                  <div className="bg-blue-50 rounded-xl p-2.5">
+                    <p className="text-[9px] font-bold text-blue-600 uppercase tracking-wide">Débito</p>
+                    <p className="text-xs font-black text-gray-900 mt-0.5">{brl(data.debito)}</p>
+                  </div>
+                  <div className="bg-purple-50 rounded-xl p-2.5">
+                    <p className="text-[9px] font-bold text-purple-600 uppercase tracking-wide">Crédito</p>
+                    <p className="text-xs font-black text-gray-900 mt-0.5">{brl(data.credito)}</p>
                   </div>
                 </div>
 
@@ -483,11 +510,12 @@ SELECT pg_notify('pgrst', 'reload schema');`}
           </div>
 
           {/* By payment method */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             {[
               { label: 'Dinheiro', value: totalDinheiro, Icon: Banknote,   bg: 'bg-green-50',  text: 'text-green-600'  },
-              { label: 'PIX',      value: totalPix,      Icon: QrCode,     bg: 'bg-blue-50',   text: 'text-blue-600'   },
-              { label: 'Cartão',   value: totalCartao,   Icon: CreditCard, bg: 'bg-violet-50', text: 'text-violet-600' },
+              { label: 'PIX',      value: totalPix,      Icon: QrCode,     bg: 'bg-sky-50',    text: 'text-sky-600'    },
+              { label: 'Débito',   value: totalDebito,   Icon: CreditCard, bg: 'bg-blue-50',   text: 'text-blue-600'   },
+              { label: 'Crédito',  value: totalCredito,  Icon: CreditCard, bg: 'bg-purple-50', text: 'text-purple-600' },
             ].map(({ label, value, Icon, bg, text }) => (
               <div key={label} className="bg-white rounded-2xl p-3 border border-gray-100 shadow-sm">
                 <div className={`w-8 h-8 rounded-xl ${bg} flex items-center justify-center mb-2`}>
@@ -611,13 +639,18 @@ SELECT pg_notify('pgrst', 'reload schema');`}
                       </span>
                     )}
                     {c.total_pix > 0 && (
-                      <span className="text-[9px] px-1 py-0.5 bg-blue-100 text-blue-700 rounded font-bold">
+                      <span className="text-[9px] px-1 py-0.5 bg-sky-100 text-sky-700 rounded font-bold">
                         {brl(c.total_pix)}
                       </span>
                     )}
-                    {c.total_cartao > 0 && (
-                      <span className="text-[9px] px-1 py-0.5 bg-violet-100 text-violet-700 rounded font-bold">
-                        {brl(c.total_cartao)}
+                    {c.total_debito > 0 && (
+                      <span className="text-[9px] px-1 py-0.5 bg-blue-100 text-blue-700 rounded font-bold">
+                        {brl(c.total_debito)}
+                      </span>
+                    )}
+                    {c.total_credito > 0 && (
+                      <span className="text-[9px] px-1 py-0.5 bg-purple-100 text-purple-700 rounded font-bold">
+                        {brl(c.total_credito)}
                       </span>
                     )}
                   </div>
