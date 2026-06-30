@@ -160,11 +160,22 @@ export default function Configuracoes() {
   const [tplError, setTplError]       = useState('')
 
   /* grade de variações (moda / kit) */
-  const [gradeConfig, setGradeConfig] = useState({ cores: [], tamanhos: [], numeros: [], pacotes: [] })
-  const [gradeInput, setGradeInput]   = useState({ cores: '', tamanhos: '', numeros: '', pacotes: '' })
-  const [gradeSaving, setGradeSaving] = useState(false)
-  const [gradeError, setGradeError]   = useState('')
+  const [gradeConfig, setGradeConfig]       = useState({ cores: [], tamanhos: [], numeros: [], pacotes: [] })
+  const [gradeInput, setGradeInput]         = useState({ cores: '', tamanhos: '', numeros: '', pacotes: '' })
+  const [gradeSaving, setGradeSaving]       = useState(false)
+  const [gradeError, setGradeError]         = useState('')
   const [gradeTemplates, setGradeTemplates] = useState([])
+  const [hasGradeCategories, setHasGradeCategories] = useState(false)
+
+  useEffect(() => {
+    if (!orgId) return
+    supabase
+      .from('categories')
+      .select('id, segment_id')
+      .eq('org_id', orgId)
+      .in('segment_id', ['moda', 'kit'])
+      .then(({ data }) => setHasGradeCategories((data || []).length > 0))
+  }, [orgId])
 
   async function loadTemplates() {
     if (!orgId) return
@@ -186,7 +197,7 @@ export default function Configuracoes() {
 
   useEffect(() => { loadTemplates() }, [orgId])
   useEffect(() => {
-    if (!orgId || (tenant?.segment !== 'moda' && tenant?.segment !== 'kit')) return
+    if (!orgId) return
     supabase.from('organizations').select('grade_config').eq('id', orgId).single()
       .then(({ data }) => {
         if (data?.grade_config) {
@@ -415,7 +426,7 @@ export default function Configuracoes() {
       </Section>
 
       {/* ════ Grade de Variações (moda / kit) ════ */}
-      {isAdmin && (tenant?.segment === 'moda' || tenant?.segment === 'kit') && (
+      {isAdmin && hasGradeCategories && (
         <Section title="Grade de Variações" icon={Grid3x3} color={color}>
           <p className="text-xs text-gray-500">
             Configure as opções de variações disponíveis para seus produtos.
