@@ -159,9 +159,9 @@ export default function Configuracoes() {
   const [tplSaving, setTplSaving]     = useState(false)
   const [tplError, setTplError]       = useState('')
 
-  /* grade de variações (moda only) */
-  const [gradeConfig, setGradeConfig] = useState({ cores: [], tamanhos: [], numeros: [] })
-  const [gradeInput, setGradeInput]   = useState({ cores: '', tamanhos: '', numeros: '' })
+  /* grade de variações (moda / kit) */
+  const [gradeConfig, setGradeConfig] = useState({ cores: [], tamanhos: [], numeros: [], pacotes: [] })
+  const [gradeInput, setGradeInput]   = useState({ cores: '', tamanhos: '', numeros: '', pacotes: '' })
   const [gradeSaving, setGradeSaving] = useState(false)
   const [gradeError, setGradeError]   = useState('')
   const [gradeTemplates, setGradeTemplates] = useState([])
@@ -186,7 +186,7 @@ export default function Configuracoes() {
 
   useEffect(() => { loadTemplates() }, [orgId])
   useEffect(() => {
-    if (!orgId || tenant?.segment !== 'moda') return
+    if (!orgId || (tenant?.segment !== 'moda' && tenant?.segment !== 'kit')) return
     supabase.from('organizations').select('grade_config').eq('id', orgId).single()
       .then(({ data }) => {
         if (data?.grade_config) {
@@ -194,6 +194,7 @@ export default function Configuracoes() {
             cores:    data.grade_config.cores    || [],
             tamanhos: data.grade_config.tamanhos || [],
             numeros:  data.grade_config.numeros  || [],
+            pacotes:  data.grade_config.pacotes  || [],
           })
         }
       })
@@ -259,6 +260,7 @@ export default function Configuracoes() {
       cores:    merge(gradeConfig.cores,    tpl.cores),
       tamanhos: merge(gradeConfig.tamanhos, tpl.tamanhos),
       numeros:  merge(gradeConfig.numeros,  tpl.numeros),
+      pacotes:  gradeConfig.pacotes,
     })
   }
 
@@ -412,11 +414,11 @@ export default function Configuracoes() {
         )}
       </Section>
 
-      {/* ════ Grade de Variações (moda only) ════ */}
-      {isAdmin && tenant?.segment === 'moda' && (
+      {/* ════ Grade de Variações (moda / kit) ════ */}
+      {isAdmin && (tenant?.segment === 'moda' || tenant?.segment === 'kit') && (
         <Section title="Grade de Variações" icon={Grid3x3} color={color}>
           <p className="text-xs text-gray-500">
-            Configure as opções de cores, tamanhos e numerações disponíveis para seus produtos.
+            Configure as opções de variações disponíveis para seus produtos.
           </p>
 
           {gradeTemplates.length > 0 && (
@@ -450,6 +452,7 @@ export default function Configuracoes() {
             { key: 'cores',    label: 'Cores',     placeholder: 'Ex: Azul Marinho, Vermelho...' },
             { key: 'tamanhos', label: 'Tamanhos',  placeholder: 'Ex: P, M, G, GG...' },
             { key: 'numeros',  label: 'Numeração', placeholder: 'Ex: 36, 37, 38...' },
+            { key: 'pacotes',  label: 'Pacotes',   placeholder: 'Ex: 1kg, 4kg, 10kg' },
           ].map(({ key, label, placeholder }) => (
             <div key={key} className="space-y-2">
               <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">{label}</p>

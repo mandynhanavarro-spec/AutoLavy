@@ -31,6 +31,7 @@ const SEGMENT_COPY = {
   geral:       { title: 'Produto simples',                    desc: 'Preço e estoque únicos (a maioria dos produtos)' },
   moda:        { title: 'Roupa, calçado ou cama/mesa/banho',  desc: 'Tem variação de cor e tamanho' },
   eletronicos: { title: 'Eletrônico',                         desc: 'Tem número de série e garantia' },
+  kit:         { title: 'Kit / Pacote',                       desc: 'Produto vendido em tamanhos e pacotes (ex: sacolas, atacado)' },
 }
 
 function todayISO() { return new Date().toISOString().split('T')[0] }
@@ -49,12 +50,21 @@ function ProductModal({
   catSegmentMap, tenantSegment, gradeConfig, variants, setVariants, variantAttrMode, setVariantAttrMode, techForm, setTechForm,
 }) {
   const effectiveSegment = (form.category_id && catSegmentMap[form.category_id]) || tenantSegment || 'geral'
+  const isKit  = effectiveSegment === 'kit'
+  const isModa = effectiveSegment === 'moda'
+  const hasGradeVariants = isModa || isKit
   const [noBarcode, setNoBarcode] = useState(() => !form.sku)
   const corOptions     = gradeConfig?.cores    || []
   const tamanhoOptions = gradeConfig?.tamanhos || []
   const numeroOptions  = gradeConfig?.numeros  || []
-  const attrOptions    = variantAttrMode === 'tamanho' ? tamanhoOptions : numeroOptions
-  const hasGradeConfig = corOptions.length > 0 || tamanhoOptions.length > 0 || numeroOptions.length > 0
+  const pacoteOptions  = gradeConfig?.pacotes  || []
+  const eixo1Label       = isKit ? 'Tamanho' : 'Cor'
+  const eixo2Label       = isKit ? 'Pacote' : (variantAttrMode === 'tamanho' ? 'Tamanho' : 'Número')
+  const eixo1Placeholder = isKit ? 'Tamanho...' : 'Cor'
+  const eixo2Placeholder = isKit ? 'Pacote...' : (variantAttrMode === 'tamanho' ? 'Tam.' : 'Nº')
+  const eixo1Options     = isKit ? tamanhoOptions : corOptions
+  const eixo2Options     = isKit ? pacoteOptions : (variantAttrMode === 'tamanho' ? tamanhoOptions : numeroOptions)
+  const hasGradeConfig   = eixo1Options.length > 0 || eixo2Options.length > 0
 
   function addVariant() {
     setVariants(v => [...v, { _key: Date.now(), id: null, cor: '', attrVal: '', stock_quantity: '', price_override: '' }])
@@ -91,7 +101,7 @@ function ProductModal({
                 onChange={e => {
                   const newCatId = e.target.value
                   setForm(f => ({ ...f, category_id: newCatId }))
-                  if (!editing && catSegmentMap[newCatId] === 'moda' && variants.length === 0) {
+                  if (!editing && (catSegmentMap[newCatId] === 'moda' || catSegmentMap[newCatId] === 'kit') && variants.length === 0) {
                     setVariants([{ _key: Date.now(), id: null, cor: '', attrVal: '', stock_quantity: '', price_override: '' }])
                   }
                 }}
@@ -138,8 +148,8 @@ function ProductModal({
             </Field>
           )}
 
-          {/* Preço + Custo (moda: sem preço — vem das variações) */}
-          {effectiveSegment !== 'moda' && (
+          {/* Preço + Custo (moda/kit: sem preço — vem das variações) */}
+          {!hasGradeVariants && (
             <div className="grid grid-cols-2 gap-3">
               <Field label="Preço de venda *">
                 <input
@@ -162,8 +172,8 @@ function ProductModal({
             </div>
           )}
 
-          {/* Estoque (oculto em moda — gerenciado por variação) */}
-          {effectiveSegment !== 'moda' && (
+          {/* Estoque (oculto em moda/kit — gerenciado por variação) */}
+          {!hasGradeVariants && (
             <div className="grid grid-cols-2 gap-3">
               <Field label="Estoque">
                 <input
@@ -187,40 +197,45 @@ function ProductModal({
           )}
         </div>
 
-        {/* ── Moda: Grade de Variações ── */}
-        {effectiveSegment === 'moda' && (
+        {/* ── Moda / Kit: Grade de Variações ── */}
+        {hasGradeVariants && (
           <div className="border-t border-gray-100 pt-3 space-y-3">
             <div className="flex items-center justify-between">
               <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">Grade de Variações</p>
-              <div className="flex gap-1">
-                {['tamanho', 'numero'].map(mode => (
-                  <button
-                    key={mode}
-                    type="button"
-                    onClick={() => setVariantAttrMode(mode)}
-                    className={`text-xs font-bold px-2.5 py-1 rounded-lg transition-colors ${
-                      variantAttrMode === mode
-                        ? 'bg-purple-100 text-purple-700'
-                        : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                    }`}
-                  >
-                    {mode === 'tamanho' ? 'Tamanho' : 'Número'}
-                  </button>
-                ))}
-              </div>
+              {!isKit && (
+                <div className="flex gap-1">
+                  {['tamanho', 'numero'].map(mode => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setVariantAttrMode(mode)}
+                      className={`text-xs font-bold px-2.5 py-1 rounded-lg transition-colors ${
+                        variantAttrMode === mode
+                          ? 'bg-purple-100 text-purple-700'
+                          : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                      }`}
+                    >
+                      {mode === 'tamanho' ? 'Tamanho' : 'Número'}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {!hasGradeConfig && (
               <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
-                Configure suas cores e tamanhos em <strong>Configurações › Grade de Variações</strong>.
+                {isKit
+                  ? <>Configure seus tamanhos e pacotes em <strong>Configurações › Grade de Variações</strong>.</>
+                  : <>Configure suas cores e tamanhos em <strong>Configurações › Grade de Variações</strong>.</>
+                }
               </p>
             )}
 
             {variants.length > 0 && (
               <div className="space-y-1.5">
                 <div className="grid grid-cols-[1fr_1fr_56px_68px_28px] gap-1 text-[9px] font-bold text-gray-400 uppercase px-0.5">
-                  <span>{variantAttrMode === 'tamanho' ? 'Tamanho' : 'Número'}</span>
-                  <span>Cor</span>
+                  <span>{eixo2Label}</span>
+                  <span>{eixo1Label}</span>
                   <span>Qtd</span>
                   <span>Preço</span>
                   <span />
@@ -228,12 +243,12 @@ function ProductModal({
                 {variants.map((v, i) => (
                   <div key={v._key} className="grid grid-cols-[1fr_1fr_56px_68px_28px] gap-1 items-center">
                     <select value={v.attrVal} onChange={e => updateVariant(i, 'attrVal', e.target.value)} className={fieldClsXs}>
-                      <option value="">{variantAttrMode === 'tamanho' ? 'Tam.' : 'Nº'}</option>
-                      {attrOptions.map(o => <option key={o} value={o}>{o}</option>)}
+                      <option value="">{eixo2Placeholder}</option>
+                      {eixo2Options.map(o => <option key={o} value={o}>{o}</option>)}
                     </select>
                     <select value={v.cor} onChange={e => updateVariant(i, 'cor', e.target.value)} className={fieldClsXs}>
-                      <option value="">Cor</option>
-                      {corOptions.map(o => <option key={o} value={o}>{o}</option>)}
+                      <option value="">{eixo1Placeholder}</option>
+                      {eixo1Options.map(o => <option key={o} value={o}>{o}</option>)}
                     </select>
                     <input
                       type="number" min="0"
@@ -272,7 +287,7 @@ function ProductModal({
         )}
 
         {/* ── Moda: Custo + Estoque mínimo ── */}
-        {effectiveSegment === 'moda' && (
+        {hasGradeVariants && (
           <div className="grid grid-cols-2 gap-3">
             <Field label="Custo">
               <input
@@ -362,7 +377,7 @@ function ProductModal({
           </button>
           <button
             onClick={onSave}
-            disabled={saving || !form.name.trim() || (effectiveSegment !== 'moda' && !form.price)}
+            disabled={saving || !form.name.trim() || (!hasGradeVariants && !form.price)}
             className="flex-1 py-3 rounded-2xl text-white font-bold text-sm shadow-md disabled:opacity-60"
             style={{ backgroundColor: color }}
           >
@@ -466,8 +481,10 @@ export default function Produtos() {
   useEffect(() => { if (showCategories) loadCategories() }, [orgId, showCategories])
   useEffect(() => { loadOrgSegments() }, [orgId])
   useEffect(() => {
-    const hasModa = segment === 'moda' || orgSegments.some(s => s.id === 'moda')
-    if (!orgId || !hasModa) return
+    const hasGrade =
+      segment === 'moda' || segment === 'kit' ||
+      orgSegments.some(s => s.id === 'moda' || s.id === 'kit')
+    if (!orgId || !hasGrade) return
     supabase.from('organizations').select('grade_config').eq('id', orgId).single()
       .then(({ data }) => setGradeConfig(data?.grade_config || null))
   }, [orgId, segment, orgSegments])
@@ -476,7 +493,7 @@ export default function Produtos() {
   function openNew() {
     setForm(EMPTY)
     setVariants(
-      segment === 'moda'
+      (segment === 'moda' || segment === 'kit')
         ? [{ _key: Date.now(), id: null, cor: '', attrVal: '', stock_quantity: '', price_override: '' }]
         : []
     )
@@ -500,17 +517,23 @@ export default function Produtos() {
     setModal(p)
     const productSeg = catSegmentMap[p.category_id] || segment || 'geral'
 
-    if (productSeg === 'moda') {
+    if (productSeg === 'moda' || productSeg === 'kit') {
       supabase.from('product_variants').select('*')
         .eq('product_id', p.id).eq('org_id', orgId)
         .then(({ data }) => {
           const rows = data || []
-          if (rows[0]?.attributes && 'numero' in rows[0].attributes) setVariantAttrMode('numero')
+          if (productSeg === 'moda' && rows[0]?.attributes && 'numero' in rows[0].attributes) {
+            setVariantAttrMode('numero')
+          }
           setVariants(rows.map((v, idx) => ({
             _key: v.id || idx,
             id: v.id,
-            cor: v.attributes?.cor || '',
-            attrVal: v.attributes?.tamanho ?? v.attributes?.numero ?? '',
+            cor: productSeg === 'kit'
+              ? (v.attributes?.tamanho || '')
+              : (v.attributes?.cor || ''),
+            attrVal: productSeg === 'kit'
+              ? (v.attributes?.pacote ?? '')
+              : (v.attributes?.tamanho ?? v.attributes?.numero ?? ''),
             stock_quantity: String(v.stock_quantity ?? ''),
             price_override: v.price_override != null ? String(v.price_override) : '',
           })))
@@ -536,10 +559,10 @@ export default function Produtos() {
   async function save() {
     if (!form.name.trim()) return
     const effectiveSeg = catSegmentMap[form.category_id] || segment || 'geral'
-    if (effectiveSeg !== 'moda' && !form.price) return
+    if (effectiveSeg !== 'moda' && effectiveSeg !== 'kit' && !form.price) return
     setSaving(true)
     let finalPrice = parseFloat(form.price || '0')
-    if (effectiveSeg === 'moda') {
+    if (effectiveSeg === 'moda' || effectiveSeg === 'kit') {
       const prices = variants
         .map(v => parseFloat(v.price_override))
         .filter(n => !isNaN(n) && n > 0)
@@ -564,14 +587,16 @@ export default function Produtos() {
       productId = modal.id
     }
 
-    if (productId && effectiveSeg === 'moda') {
+    if (productId && (effectiveSeg === 'moda' || effectiveSeg === 'kit')) {
       await supabase.from('product_variants').delete().eq('product_id', productId).eq('org_id', orgId)
       const variantRows = variants
         .filter(v => v.cor || v.attrVal)
         .map(v => ({
           org_id: orgId,
           product_id: productId,
-          attributes: { cor: v.cor, [variantAttrMode]: v.attrVal },
+          attributes: effectiveSeg === 'kit'
+            ? { tamanho: v.cor, pacote: v.attrVal }
+            : { cor: v.cor, [variantAttrMode]: v.attrVal },
           stock_quantity: parseInt(v.stock_quantity || '0'),
           price_override: v.price_override ? parseFloat(v.price_override) : null,
           is_active: true,
