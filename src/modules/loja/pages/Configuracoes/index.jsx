@@ -166,6 +166,8 @@ export default function Configuracoes() {
   const [gradeError, setGradeError]         = useState('')
   const [gradeTemplates, setGradeTemplates] = useState([])
   const [hasGradeCategories, setHasGradeCategories] = useState(false)
+  const [orgSegments, setOrgSegments]       = useState([])
+  const [hasKitCategories, setHasKitCategories] = useState(false)
 
   useEffect(() => {
     if (!orgId) return
@@ -176,6 +178,29 @@ export default function Configuracoes() {
       .in('segment_id', ['moda', 'kit'])
       .then(({ data }) => setHasGradeCategories((data || []).length > 0))
   }, [orgId])
+
+  useEffect(() => {
+    if (!orgId) return
+    supabase
+      .from('categories')
+      .select('id, segment_id')
+      .eq('org_id', orgId)
+      .eq('segment_id', 'kit')
+      .then(({ data }) => setHasKitCategories((data || []).length > 0))
+  }, [orgId])
+
+  useEffect(() => {
+    if (!orgId) return
+    supabase.from('organization_segments').select('segment_id').eq('org_id', orgId)
+      .then(({ data: orgSegsData }) => {
+        const slugs = (orgSegsData || []).map(r => r.segment_id)
+        if (!slugs.length) { setOrgSegments([]); return }
+        supabase.from('segments').select('id, name').in('id', slugs)
+          .then(({ data: segData }) => setOrgSegments(segData || []))
+      })
+  }, [orgId])
+
+  const hasModa = orgSegments?.some(s => s.id === 'moda')
 
   async function loadTemplates() {
     if (!orgId) return
@@ -432,7 +457,7 @@ export default function Configuracoes() {
             Configure as opções de variações disponíveis para seus produtos.
           </p>
 
-          {gradeTemplates.length > 0 && (
+          {hasModa && gradeTemplates.length > 0 && (
             <div className="space-y-2">
               <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Começar com um modelo:</p>
               <div className="flex flex-wrap gap-2">
@@ -460,11 +485,11 @@ export default function Configuracoes() {
           )}
 
           {[
-            { key: 'cores',    label: 'Cores',     placeholder: 'Ex: Azul Marinho, Vermelho...' },
-            { key: 'tamanhos', label: 'Tamanhos',  placeholder: 'Ex: P, M, G, GG...' },
-            { key: 'numeros',  label: 'Numeração', placeholder: 'Ex: 36, 37, 38...' },
-            { key: 'pacotes',  label: 'Pacotes',   placeholder: 'Ex: 1kg, 4kg, 10kg' },
-          ].map(({ key, label, placeholder }) => (
+            { key: 'cores',    label: 'Cores',     placeholder: 'Ex: Azul Marinho, Vermelho...', visible: hasModa },
+            { key: 'tamanhos', label: 'Tamanhos',  placeholder: 'Ex: P, M, G, GG...',             visible: true },
+            { key: 'numeros',  label: 'Numeração', placeholder: 'Ex: 36, 37, 38...',              visible: hasModa },
+            { key: 'pacotes',  label: 'Pacotes',   placeholder: 'Ex: 1kg, 4kg, 10kg',             visible: hasKitCategories },
+          ].filter(f => f.visible).map(({ key, label, placeholder }) => (
             <div key={key} className="space-y-2">
               <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">{label}</p>
               <div className="flex flex-wrap gap-1.5 min-h-[28px]">
