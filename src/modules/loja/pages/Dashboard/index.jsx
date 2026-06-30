@@ -17,6 +17,21 @@ function sumTotal(arr) {
   return arr.reduce((s, r) => s + Number(r.total_amount), 0)
 }
 
+const METHOD_LABEL = {
+  dinheiro: 'Dinheiro',
+  pix:      'PIX',
+  debito:   'Débito',
+  credito:  'Crédito',
+  misto:    'Misto',
+}
+const METHOD_COLOR = {
+  dinheiro: 'bg-green-100 text-green-700',
+  pix:      'bg-sky-100 text-sky-700',
+  debito:   'bg-blue-100 text-blue-700',
+  credito:  'bg-purple-100 text-purple-700',
+  misto:    'bg-amber-100 text-amber-700',
+}
+
 function todayISO() {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -344,8 +359,8 @@ export default function Dashboard() {
                     </p>
                   </div>
                 </div>
-                <span className="text-[10px] font-bold uppercase px-2 py-1 rounded-lg bg-gray-100 text-gray-500 shrink-0">
-                  {sale.payment_method}
+                <span className={`text-[10px] font-bold px-2 py-1 rounded-lg shrink-0 ${METHOD_COLOR[sale.payment_method] || 'bg-gray-100 text-gray-600'}`}>
+                  {METHOD_LABEL[sale.payment_method] || sale.payment_method}
                 </span>
               </div>
             ))}

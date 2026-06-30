@@ -28,7 +28,13 @@ const FILTERS = [
   { key: 'mes',    label: 'Este mês' },
 ]
 
-const METHOD_LABEL = { dinheiro: 'Dinheiro', pix: 'PIX', cartao: 'Cartão' }
+const METHOD_LABEL = {
+  dinheiro: 'Dinheiro',
+  pix:      'PIX',
+  debito:   'Débito',
+  credito:  'Crédito',
+  misto:    'Misto',
+}
 
 function saleItemName(si) {
   const base  = si.products?.name || '—'
@@ -42,8 +48,10 @@ function saleItemName(si) {
 
 const METHOD_COLOR = {
   dinheiro: 'bg-green-100 text-green-700',
-  pix:      'bg-blue-100 text-blue-700',
-  cartao:   'bg-violet-100 text-violet-700',
+  pix:      'bg-sky-100 text-sky-700',
+  debito:   'bg-blue-100 text-blue-700',
+  credito:  'bg-purple-100 text-purple-700',
+  misto:    'bg-amber-100 text-amber-700',
 }
 
 const REGISTER_COLORS = [
@@ -105,7 +113,7 @@ export default function Historico() {
     Promise.all([
       supabase
         .from('sales')
-        .select('id, total_amount, payment_method, register_id, created_at, profiles!user_id(full_name)')
+        .select('id, total_amount, payment_method, register_id, created_at, profiles!user_id(full_name), sale_payments(payment_method, amount)')
         .eq('org_id', orgId)
         .gte('created_at', start)
         .order('created_at', { ascending: false }),
@@ -340,6 +348,16 @@ export default function Historico() {
                         </span>
                       )}
                     </div>
+                    {sale.payment_method === 'misto' && (sale.sale_payments || []).length > 0 && (
+                      <div className="mt-1.5 pl-2 border-l-2 border-gray-200 flex flex-col gap-0.5">
+                        {sale.sale_payments.map((p, i) => (
+                          <div key={i} className="flex justify-between text-[11px] text-gray-500">
+                            <span>{METHOD_LABEL[p.payment_method] || p.payment_method}</span>
+                            <span className="font-semibold">{brl(p.amount)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     <p className="text-[11px] text-gray-400 mt-0.5 truncate">
                       {sale.profiles?.full_name || 'Vendedor'} · {fmtDate(sale.created_at)} {fmtTime(sale.created_at)}
                     </p>

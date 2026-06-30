@@ -179,7 +179,7 @@ export default function Fechamento() {
   /* ── per-register close */
   async function fecharCaixaById(registerId) {
     const reg  = registers.find(r => r.id === registerId)
-    const data = regSalesMap[registerId] || { total: 0, dinheiro: 0, pix: 0, cartao: 0, count: 0 }
+    const data = regSalesMap[registerId] || { total: 0, dinheiro: 0, pix: 0, debito: 0, credito: 0, count: 0 }
     if (!window.confirm(`Fechar ${reg?.name}?\nTotal: ${brl(data.total)}`)) return
 
     setClosing(registerId)
@@ -348,7 +348,7 @@ SELECT pg_notify('pgrst', 'reload schema');`}
           <h2 className="text-sm font-black text-gray-700">Resumo por caixa</h2>
 
           {registers.map(reg => {
-            const data      = regSalesMap[reg.id] || { total: 0, dinheiro: 0, pix: 0, cartao: 0, count: 0 }
+            const data      = regSalesMap[reg.id] || { total: 0, dinheiro: 0, pix: 0, debito: 0, credito: 0, count: 0 }
             const movs      = regMovsMap[reg.id]  || { sangria: 0, reforco: 0 }
             const isClosed  = !!closedToday[reg.id]
             const isClosing = closing === reg.id || closing === 'all'
