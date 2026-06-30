@@ -752,7 +752,13 @@ export default function Produtos() {
             </div>
             {canManage && (
               <button
-                onClick={() => { setCatForm({ name: '', description: '', segment_id: '' }); setCatModal('new') }}
+                onClick={() => {
+                  const hasModa  = orgSegments.some(s => s.id === 'moda')
+                  const hasGeral = orgSegments.some(s => s.id === 'geral')
+                  const defaultSegment = hasModa ? 'moda' : hasGeral ? 'geral' : 'kit'
+                  setCatForm({ name: '', description: '', segment_id: defaultSegment })
+                  setCatModal('new')
+                }}
                 className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-xl text-white active:scale-95 transition-transform"
                 style={{ backgroundColor: color }}
               >
@@ -1123,15 +1129,31 @@ export default function Produtos() {
                 <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wide block mb-1.5">
                   Tipo de produto
                 </label>
-                <select
-                  value={catForm.segment_id || 'geral'}
-                  onChange={e => setCatForm(f => ({ ...f, segment_id: e.target.value }))}
-                  className={fieldCls}
-                >
-                  <option value="geral">Produto simples — preço e estoque únicos</option>
-                  <option value="moda">Roupa / Calçado — variação de cor e tamanho</option>
-                  <option value="kit">Kit / Pacote — variação de tamanho e pacote</option>
-                </select>
+                {(() => {
+                  const hasModa  = orgSegments.some(s => s.id === 'moda')
+                  const hasGeral = orgSegments.some(s => s.id === 'geral')
+                  return (
+                    <select
+                      value={catForm.segment_id || (hasModa ? 'moda' : hasGeral ? 'geral' : 'kit')}
+                      onChange={e => setCatForm(f => ({ ...f, segment_id: e.target.value }))}
+                      className={fieldCls}
+                    >
+                      {hasGeral && (
+                        <option value="geral">
+                          Produto simples — preço e estoque únicos
+                        </option>
+                      )}
+                      {hasModa && (
+                        <option value="moda">
+                          Roupa / Calçado — variação de cor e tamanho
+                        </option>
+                      )}
+                      <option value="kit">
+                        Kit / Pacote — variação de tamanho e pacote
+                      </option>
+                    </select>
+                  )
+                })()}
               </div>
             </div>
 
