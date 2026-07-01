@@ -150,6 +150,8 @@ function QuickAddModal({
   function handleDetected(code) {
     if (scanningKey === 'mobile') {
       updateMobileForm('sku', code)
+    } else if (scanningKey === 'kit') {
+      setKitSku(code)
     } else {
       updateLine(scanningKey, 'barcode', code)
     }
@@ -193,6 +195,8 @@ function QuickAddModal({
   const combos   = tamanhos.flatMap(t => pacotes.map(p => ({ tamanho: t, pacote: p })))
 
   const [kitLines, setKitLines] = useState({})
+  const [kitHasSku, setKitHasSku] = useState(false)
+  const [kitSku, setKitSku]       = useState('')
 
   function updateKitLine(key, field, value) {
     setKitLines(prev => ({ ...prev, [key]: { ...(prev[key] || {}), [field]: value } }))
@@ -222,7 +226,7 @@ function QuickAddModal({
           price:          finalPrice,
           stock_quantity: totalStock,
           category_id:    kitCatId || null,
-          sku:            null,
+          sku:            kitHasSku && kitSku.trim() ? kitSku.trim() : null,
         })
         .select('id')
         .single()
@@ -245,6 +249,8 @@ function QuickAddModal({
         .insert(variantRows)
       if (e2) throw e2
 
+      setKitHasSku(false)
+      setKitSku('')
       onSaved()
       onClose()
     } catch (err) {
@@ -649,6 +655,45 @@ function QuickAddModal({
                   </select>
                 </div>
               </div>
+
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={kitHasSku}
+                  onChange={e => {
+                    setKitHasSku(e.target.checked)
+                    if (!e.target.checked) setKitSku('')
+                  }}
+                  className="w-4 h-4 rounded accent-current"
+                  style={{ accentColor: color }}
+                />
+                <span className="text-xs text-gray-500 font-medium">Tenho código de barras</span>
+              </label>
+              {kitHasSku && (
+                <div>
+                  <label className="text-[11px] font-bold text-gray-400
+                    uppercase tracking-wide block mb-1.5">Código de barras</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={kitSku}
+                      onChange={e => setKitSku(e.target.value)}
+                      placeholder="Digite o código"
+                      className="flex-1 px-3 py-2 rounded-xl border border-gray-200
+                        text-sm outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => openScanner('kit')}
+                      className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                      style={{ backgroundColor: color + '15', color: color }}
+                      title="Escanear com a câmera"
+                    >
+                      <Camera size={16} />
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {combos.length === 0 ? (
                 <div className="text-center py-8 text-sm text-gray-400">
