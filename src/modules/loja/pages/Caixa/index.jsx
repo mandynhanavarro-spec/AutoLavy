@@ -726,18 +726,21 @@ export default function Caixa() {
 
   /* ── product filter by register ──────────────────────────── */
   const pf = activeRegister?.product_filter
-  const allowedCategoryIds = (() => {
-    if (!pf) return null
-    // Formato novo: array de ids
+  const { allowedCategoryIds, onlyUncategorized } = (() => {
+    if (!pf) return { allowedCategoryIds: null, onlyUncategorized: false }
+    // Formato novo: array com ids → filtra por essas categorias
     if (Array.isArray(pf.category_ids) && pf.category_ids.length > 0) {
-      return pf.category_ids
+      return { allowedCategoryIds: pf.category_ids, onlyUncategorized: false }
     }
     // Formato antigo: id singular
     if (pf.category_id) {
-      return [pf.category_id]
+      return { allowedCategoryIds: [pf.category_id], onlyUncategorized: false }
     }
-    // Array vazio ou sem filtro → mostrar tudo
-    return null
+    // Array vazio → mostrar só produtos sem categoria
+    if (Array.isArray(pf.category_ids) && pf.category_ids.length === 0) {
+      return { allowedCategoryIds: null, onlyUncategorized: true }
+    }
+    return { allowedCategoryIds: null, onlyUncategorized: false }
   })()
 
   const filtered = products.filter(p => {
@@ -746,7 +749,9 @@ export default function Caixa() {
       p.name.toLowerCase().includes(q) ||
       (p.sku && p.sku.toLowerCase().includes(q))
     )
-    const matchCategory = !allowedCategoryIds || allowedCategoryIds.includes(p.category_id)
+    const matchCategory = onlyUncategorized
+      ? !p.category_id
+      : !allowedCategoryIds || allowedCategoryIds.includes(p.category_id)
     return matchSearch && matchCategory
   })
 
