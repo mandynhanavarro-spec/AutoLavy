@@ -74,14 +74,15 @@ export default function Fechamento() {
     /* today's sales */
     const { data: salesData } = await supabase
       .from('sales')
-      .select('id, total_amount, payment_method, register_id, sale_payments(payment_method, amount)')
+      .select('id, total_amount, payment_method, register_id, status, sale_payments(payment_method, amount)')
       .eq('org_id', orgId)
       .gte('created_at', todayStart().toISOString())
-    setTodaySales(salesData || [])
+    const validSales = (salesData || []).filter(s => s.status !== 'voided')
+    setTodaySales(validSales)
 
     /* build per-register sales map */
     const regMap = {}
-    for (const s of (salesData || [])) {
+    for (const s of validSales) {
       const rid = s.register_id || '__unknown__'
       if (!regMap[rid]) regMap[rid] = { total: 0, dinheiro: 0, pix: 0, debito: 0, credito: 0, count: 0 }
       regMap[rid].total += Number(s.total_amount)

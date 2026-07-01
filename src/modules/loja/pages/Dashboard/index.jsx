@@ -81,18 +81,18 @@ export default function Dashboard() {
       const [todayRes, ystRes, salesListRes, productsRes, itemsRes, regsRes] = await Promise.all([
         supabase
           .from('sales')
-          .select('id, total_amount, register_id')
+          .select('id, total_amount, register_id, status')
           .eq('org_id', orgId)
           .gte('created_at', todayStart.toISOString()),
         supabase
           .from('sales')
-          .select('id, total_amount')
+          .select('id, total_amount, status')
           .eq('org_id', orgId)
           .gte('created_at', ystStart.toISOString())
           .lt('created_at', todayStart.toISOString()),
         supabase
           .from('sales')
-          .select('id, total_amount, payment_method, created_at, profiles!user_id(full_name)')
+          .select('id, total_amount, payment_method, created_at, status, profiles!user_id(full_name)')
           .eq('org_id', orgId)
           .gte('created_at', rangeStart.toISOString())
           .order('created_at', { ascending: false })
@@ -111,11 +111,12 @@ export default function Dashboard() {
           .eq('is_active', true),
       ])
 
-      const todayData = todayRes.data || []
+      const todayData = (todayRes.data || []).filter(s => s.status !== 'voided')
+      const ystData   = (ystRes.data || []).filter(s => s.status !== 'voided')
       const regsData  = regsRes?.data ?? []
 
       setTodaySales(todayData)
-      setYstSales(ystRes.data || [])
+      setYstSales(ystData)
       setRecentSales(salesListRes.data || [])
       setRegisters(regsData)
 
@@ -340,19 +341,28 @@ export default function Dashboard() {
             {recentSales.map((sale, i) => (
               <div
                 key={sale.id}
-                className="bg-white rounded-2xl px-4 py-3 border border-gray-100 shadow-sm flex items-center justify-between"
+                className={`bg-white rounded-2xl px-4 py-3 border border-gray-100 shadow-sm flex items-center justify-between ${
+                  sale.status === 'voided' ? 'opacity-50' : ''
+                }`}
               >
                 <div className="flex items-center gap-3">
                   <span className="w-7 h-7 rounded-xl bg-gray-100 flex items-center justify-center text-[11px] font-black text-gray-400 shrink-0">
                     {i + 1}
                   </span>
                   <div>
-                    <p
-                      className="text-sm font-bold"
-                      style={valuesHidden ? { color: '#d1d5db', letterSpacing: '3px' } : { color: '#111827' }}
-                    >
-                      {valuesHidden ? '••••' : fmt(sale.total_amount)}
-                    </p>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <p
+                        className="text-sm font-bold"
+                        style={valuesHidden ? { color: '#d1d5db', letterSpacing: '3px' } : { color: '#111827' }}
+                      >
+                        {valuesHidden ? '••••' : fmt(sale.total_amount)}
+                      </p>
+                      {sale.status === 'voided' && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-red-100 text-red-600">
+                          Estornada
+                        </span>
+                      )}
+                    </div>
                     <p className="text-[11px] text-gray-400">
                       {sale.profiles?.full_name || 'Vendedor'} ·{' '}
                       {new Date(sale.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
