@@ -1171,7 +1171,7 @@ export default function Produtos() {
                     >
                       {hasGeral && (
                         <option value="geral">
-                          Produto simples — preço e estoque únicos
+                          Produto único — um preço, um estoque
                         </option>
                       )}
                       {hasModa && (
@@ -1180,7 +1180,7 @@ export default function Produtos() {
                         </option>
                       )}
                       <option value="kit">
-                        Kit / Pacote — variação de tamanho e pacote
+                        Kit ou Pacote — vários tamanhos e quantidades
                       </option>
                     </select>
                   )
