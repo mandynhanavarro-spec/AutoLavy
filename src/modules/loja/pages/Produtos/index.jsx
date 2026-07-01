@@ -70,7 +70,7 @@ function QuickAddModal({
   /* ── ABA SIMPLES (mobile) ── */
   const [mobileForm, setMobileForm] = useState({
     categoryId: '', categoryLocked: false,
-    name: '', noSku: true, sku: '',
+    name: '', hasSku: false, sku: '',
     price: '', cost: '', stock: '', minStock: '',
   })
   const [lastSaved, setLastSaved] = useState(null)
@@ -92,7 +92,7 @@ function QuickAddModal({
         stock_quantity:  parseInt(mobileForm.stock || '0'),
         min_stock_alert: mobileForm.minStock ? parseInt(mobileForm.minStock) : 5,
         category_id:     mobileForm.categoryId || null,
-        sku:             !mobileForm.noSku && mobileForm.sku.trim()
+        sku:             mobileForm.hasSku && mobileForm.sku.trim()
                            ? mobileForm.sku.trim() : null,
       })
       if (error) throw error
@@ -101,7 +101,7 @@ function QuickAddModal({
         setLastSaved(mobileForm.name.trim())
         setMobileForm(prev => ({
           ...prev, // mantém categoryId e categoryLocked
-          name: '', noSku: true, sku: '',
+          name: '', hasSku: false, sku: '',
           price: '', cost: '', stock: '', minStock: '',
         }))
         setTimeout(() => setLastSaved(null), 3000)
@@ -358,16 +358,16 @@ function QuickAddModal({
               <label className="flex items-center gap-2 cursor-pointer select-none">
                 <input
                   type="checkbox"
-                  checked={mobileForm.noSku}
+                  checked={mobileForm.hasSku}
                   onChange={e => {
-                    updateMobileForm('noSku', e.target.checked)
-                    if (e.target.checked) updateMobileForm('sku', '')
+                    updateMobileForm('hasSku', e.target.checked)
+                    if (!e.target.checked) updateMobileForm('sku', '')
                   }}
                   className="w-4 h-4 rounded"
                 />
-                <span className="text-xs text-gray-500 font-medium">Não tenho código de barras</span>
+                <span className="text-xs text-gray-500 font-medium">Tenho código de barras</span>
               </label>
-              {!mobileForm.noSku && (
+              {mobileForm.hasSku && (
                 <Field label="SKU / Código de barras">
                   <div className="flex items-center gap-2">
                     <input
