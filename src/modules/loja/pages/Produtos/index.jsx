@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Pencil, Trash2, X, Package, AlertTriangle, FlaskConical, Lock, Tag, LayoutGrid, List, Camera } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, Package, AlertTriangle, FlaskConical, Lock, Unlock, Tag, LayoutGrid, List, Camera, Check } from 'lucide-react'
 import { BrowserMultiFormatReader } from '@zxing/browser'
 import { supabase } from '../../../../shared/lib/supabase'
 import { useTenantContext } from '../../../../core/contexts/TenantContext'
@@ -57,7 +57,68 @@ function QuickAddModal({
   const [tab, setTab] = useState('simples')
   const [saving, setSaving] = useState(false)
 
-  /* ── ABA SIMPLES ── */
+  /* ── layout mobile vs desktop ── */
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== 'undefined' && window.innerWidth < 640
+  )
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 640)
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
+
+  /* ── ABA SIMPLES (mobile) ── */
+  const [mobileForm, setMobileForm] = useState({
+    categoryId: '', categoryLocked: false,
+    name: '', noSku: true, sku: '',
+    price: '', cost: '', stock: '', minStock: '',
+  })
+  const [lastSaved, setLastSaved] = useState(null)
+  const nameInputRef = useRef(null)
+
+  function updateMobileForm(field, value) {
+    setMobileForm(prev => ({ ...prev, [field]: value }))
+  }
+
+  async function saveMobileSimples(keepOpen) {
+    if (!mobileForm.name.trim() || !mobileForm.price) return
+    setSaving(true)
+    try {
+      const { error } = await supabase.from('products').insert({
+        org_id:          orgId,
+        name:            mobileForm.name.trim(),
+        price:           parseFloat(mobileForm.price),
+        cost_price:      mobileForm.cost ? parseFloat(mobileForm.cost) : null,
+        stock_quantity:  parseInt(mobileForm.stock || '0'),
+        min_stock_alert: mobileForm.minStock ? parseInt(mobileForm.minStock) : 5,
+        category_id:     mobileForm.categoryId || null,
+        sku:             !mobileForm.noSku && mobileForm.sku.trim()
+                           ? mobileForm.sku.trim() : null,
+      })
+      if (error) throw error
+
+      if (keepOpen) {
+        setLastSaved(mobileForm.name.trim())
+        setMobileForm(prev => ({
+          ...prev, // mantém categoryId e categoryLocked
+          name: '', noSku: true, sku: '',
+          price: '', cost: '', stock: '', minStock: '',
+        }))
+        setTimeout(() => setLastSaved(null), 3000)
+        nameInputRef.current?.focus()
+        onSaved()
+      } else {
+        onSaved()
+        onClose()
+      }
+    } catch (err) {
+      alert('Erro ao salvar: ' + err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  /* ── ABA SIMPLES (desktop) ── */
   const [lines, setLines] = useState([
     { _key: 1, name: '', price: '', cost: '', stock: '', min_stock: '', barcode: '' },
     { _key: 2, name: '', price: '', cost: '', stock: '', min_stock: '', barcode: '' },
@@ -87,7 +148,11 @@ function QuickAddModal({
   }
 
   function handleDetected(code) {
-    updateLine(scanningKey, 'barcode', code)
+    if (scanningKey === 'mobile') {
+      updateMobileForm('sku', code)
+    } else {
+      updateLine(scanningKey, 'barcode', code)
+    }
     setScanningKey(null)
   }
 
@@ -230,7 +295,171 @@ function QuickAddModal({
         <div className="p-5">
 
           {/* ── ABA SIMPLES ── */}
-          {tab === 'simples' && (
+          {tab === 'simples' && (isMobile ? (
+            <div className="space-y-4">
+              {lastSaved && (
+                <div className="bg-green-50 text-green-700 text-xs font-medium
+                  px-3 py-2 rounded-xl flex items-center gap-1.5 mb-3">
+                  <Check size={14} /> {lastSaved} cadastrado
+                </div>
+              )}
+
+              <Field label="Categoria (opcional)">
+                {mobileForm.categoryLocked ? (
+                  <div className="flex items-center justify-between px-3 py-2.5 rounded-xl
+                    bg-gray-50 border border-gray-200">
+                    <span className="text-sm font-semibold text-gray-700">
+                      {categories.find(c => c.id === mobileForm.categoryId)?.name || 'Sem categoria'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => updateMobileForm('categoryLocked', false)}
+                      className="text-gray-400 hover:text-gray-600"
+                      title="Destravar categoria"
+                    >
+                      <Lock size={15} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={mobileForm.categoryId}
+                      onChange={e => updateMobileForm('categoryId', e.target.value)}
+                      className={fieldCls}
+                    >
+                      <option value="">Sem categoria</option>
+                      {categories.map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => updateMobileForm('categoryLocked', true)}
+                      className="w-10 h-10 rounded-xl bg-gray-50 border border-gray-200
+                        flex items-center justify-center text-gray-400 hover:text-gray-600 shrink-0"
+                      title="Travar categoria"
+                    >
+                      <Unlock size={15} />
+                    </button>
+                  </div>
+                )}
+              </Field>
+
+              <Field label="Nome *">
+                <input
+                  ref={nameInputRef}
+                  value={mobileForm.name}
+                  onChange={e => updateMobileForm('name', e.target.value)}
+                  placeholder="Nome do produto"
+                  className={fieldCls}
+                />
+              </Field>
+
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={mobileForm.noSku}
+                  onChange={e => {
+                    updateMobileForm('noSku', e.target.checked)
+                    if (e.target.checked) updateMobileForm('sku', '')
+                  }}
+                  className="w-4 h-4 rounded"
+                />
+                <span className="text-xs text-gray-500 font-medium">Não tenho código de barras</span>
+              </label>
+              {!mobileForm.noSku && (
+                <Field label="SKU / Código de barras">
+                  <div className="flex items-center gap-2">
+                    <input
+                      value={mobileForm.sku}
+                      onChange={e => updateMobileForm('sku', e.target.value)}
+                      placeholder="Digite o código"
+                      className={fieldCls}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => openScanner('mobile')}
+                      className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                      style={{ backgroundColor: color + '15', color: color }}
+                      title="Escanear com a câmera"
+                    >
+                      <Camera size={16} />
+                    </button>
+                  </div>
+                </Field>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Preço de venda *">
+                  <input
+                    type="number" step="0.01" min="0"
+                    value={mobileForm.price}
+                    onChange={e => updateMobileForm('price', e.target.value)}
+                    placeholder="0,00"
+                    className={fieldCls}
+                  />
+                </Field>
+                <Field label="Custo">
+                  <input
+                    type="number" step="0.01" min="0"
+                    value={mobileForm.cost}
+                    onChange={e => updateMobileForm('cost', e.target.value)}
+                    placeholder="0,00"
+                    className={fieldCls}
+                  />
+                </Field>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Estoque">
+                  <input
+                    type="number" min="0"
+                    value={mobileForm.stock}
+                    onChange={e => updateMobileForm('stock', e.target.value)}
+                    placeholder="0"
+                    className={fieldCls}
+                  />
+                </Field>
+                <Field label="Estoque mínimo">
+                  <input
+                    type="number" min="0"
+                    value={mobileForm.minStock}
+                    onChange={e => updateMobileForm('minStock', e.target.value)}
+                    placeholder="5"
+                    className={fieldCls}
+                  />
+                </Field>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  onClick={onClose}
+                  className="flex-1 py-2.5 rounded-xl bg-gray-100
+                    text-gray-700 font-bold text-sm"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => saveMobileSimples(false)}
+                  disabled={saving || !mobileForm.name.trim() || !mobileForm.price}
+                  className="flex-1 py-2.5 rounded-xl text-white font-bold text-sm disabled:opacity-40"
+                  style={{ backgroundColor: color }}
+                >
+                  {saving ? 'Salvando...' : 'Salvar'}
+                </button>
+              </div>
+              <button
+                onClick={() => saveMobileSimples(true)}
+                disabled={saving || !mobileForm.name.trim() || !mobileForm.price}
+                className="w-full py-2.5 rounded-xl border-2 text-sm font-bold
+                  flex items-center justify-center gap-1.5 disabled:opacity-40"
+                style={{ borderColor: color, color: color }}
+              >
+                <Plus size={14} />
+                Salvar e cadastrar outro
+              </button>
+            </div>
+          ) : (
             <div className="space-y-4">
               {/* Categoria + código de barras */}
               <div className="flex items-end justify-between gap-3">
@@ -384,7 +613,7 @@ function QuickAddModal({
                 </button>
               </div>
             </div>
-          )}
+          ))}
 
           {/* ── ABA KIT ── */}
           {tab === 'kit' && (
@@ -424,6 +653,74 @@ function QuickAddModal({
                   Configure tamanhos e pacotes em{' '}
                   <strong>Configurações › Grade de Variações</strong>
                 </div>
+              ) : isMobile ? (
+                <>
+                  {/* Combinações — cards */}
+                  <div className="space-y-2">
+                    {combos.map(c => {
+                      const key = c.tamanho + '|' + c.pacote
+                      const kl  = kitLines[key] || {}
+                      return (
+                        <div key={key} className="rounded-2xl border border-gray-200 p-3 space-y-2">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-gray-100 text-gray-600">
+                              {c.tamanho}
+                            </span>
+                            <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-gray-100 text-gray-600">
+                              {c.pacote}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <input
+                              type="number"
+                              placeholder="Preço 0,00"
+                              value={kl.price || ''}
+                              onChange={e => updateKitLine(key, 'price', e.target.value)}
+                              className="px-3 py-2 rounded-xl border border-gray-200
+                                text-sm outline-none"
+                            />
+                            <input
+                              type="number"
+                              placeholder="Custo —"
+                              value={kl.cost || ''}
+                              onChange={e => updateKitLine(key, 'cost', e.target.value)}
+                              className="px-3 py-2 rounded-xl border border-gray-200
+                                text-sm outline-none text-gray-400"
+                            />
+                          </div>
+                          <input
+                            type="number"
+                            placeholder="Estoque 0"
+                            value={kl.stock || ''}
+                            onChange={e => updateKitLine(key, 'stock', e.target.value)}
+                            className="w-full px-3 py-2 rounded-xl border border-gray-200
+                              text-sm outline-none"
+                          />
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      onClick={onClose}
+                      className="flex-1 py-2.5 rounded-xl bg-gray-100
+                        text-gray-700 font-bold text-sm"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={saveKit}
+                      disabled={saving || !kitName.trim() || !validKitLines.length}
+                      className="flex-2 px-6 py-2.5 rounded-xl text-white
+                        font-bold text-sm disabled:opacity-40"
+                      style={{ backgroundColor: color, flex: 2 }}
+                    >
+                      {saving ? 'Salvando...'
+                        : `Salvar ${kitName || 'produto'} (${validKitLines.length} variações)`}
+                    </button>
+                  </div>
+                </>
               ) : (
                 <>
                   {/* Cabeçalho */}
@@ -1641,7 +1938,7 @@ export default function Produtos() {
           gradeConfig={gradeConfig}
           color={color}
           onClose={() => setQuickModal(false)}
-          onSaved={() => { load(); setQuickModal(false) }}
+          onSaved={() => load()}
         />
       )}
 
