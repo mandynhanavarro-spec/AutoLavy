@@ -43,6 +43,421 @@ function calcWarrantyUntil(from, months) {
   return d.toISOString().split('T')[0]
 }
 
+/* ── cadastro rápido (múltiplos produtos) ───────────────────────────── */
+
+function QuickAddModal({
+  orgId, segment, categories, catSegmentMap,
+  gradeConfig, onClose, onSaved, color
+}) {
+  const TABS = [
+    { key: 'simples', label: 'Produto simples' },
+    { key: 'kit', label: 'Kit / Variações' },
+  ]
+  const [tab, setTab] = useState('simples')
+  const [saving, setSaving] = useState(false)
+
+  /* ── ABA SIMPLES ── */
+  const [lines, setLines] = useState([
+    { _key: 1, name: '', price: '', cost: '', stock: '', min_stock: '' },
+    { _key: 2, name: '', price: '', cost: '', stock: '', min_stock: '' },
+  ])
+  const [simpleCatId, setSimpleCatId] = useState('')
+
+  function addLine() {
+    setLines(prev => [...prev, {
+      _key: Date.now(), name: '', price: '',
+      cost: '', stock: '', min_stock: ''
+    }])
+  }
+
+  function updateLine(key, field, value) {
+    setLines(prev => prev.map(l => l._key === key ? { ...l, [field]: value } : l))
+  }
+
+  function removeLine(key) {
+    if (lines.length <= 1) return
+    setLines(prev => prev.filter(l => l._key !== key))
+  }
+
+  const validLines = lines.filter(l => l.name.trim() && l.price)
+
+  async function saveSimples() {
+    if (!validLines.length) return
+    setSaving(true)
+    try {
+      const rows = validLines.map(l => ({
+        org_id:         orgId,
+        name:           l.name.trim(),
+        price:          parseFloat(l.price),
+        cost_price:     l.cost ? parseFloat(l.cost) : null,
+        stock_quantity: parseInt(l.stock || '0'),
+        min_stock_alert: l.min_stock ? parseInt(l.min_stock) : 5,
+        category_id:    simpleCatId || null,
+        is_active:      true,
+        sku:            null,
+      }))
+      const { error } = await supabase.from('products').insert(rows)
+      if (error) throw error
+      onSaved()
+      onClose()
+    } catch (err) {
+      alert('Erro ao salvar: ' + err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  /* ── ABA KIT ── */
+  const [kitName, setKitName]     = useState('')
+  const [kitCatId, setKitCatId]   = useState('')
+  const kitCategories = categories.filter(c => catSegmentMap[c.id] === 'kit')
+
+  const tamanhos = gradeConfig?.tamanhos || []
+  const pacotes  = gradeConfig?.pacotes  || []
+  const combos   = tamanhos.flatMap(t => pacotes.map(p => ({ tamanho: t, pacote: p })))
+
+  const [kitLines, setKitLines] = useState({})
+
+  function updateKitLine(key, field, value) {
+    setKitLines(prev => ({ ...prev, [key]: { ...(prev[key] || {}), [field]: value } }))
+  }
+
+  const validKitLines = combos.filter(c => {
+    const key = c.tamanho + '|' + c.pacote
+    return kitLines[key]?.price
+  })
+
+  async function saveKit() {
+    if (!kitName.trim() || !validKitLines.length) return
+    setSaving(true)
+    try {
+      const prices = validKitLines.map(c =>
+        parseFloat(kitLines[c.tamanho + '|' + c.pacote].price)
+      ).filter(n => !isNaN(n) && n > 0)
+      const finalPrice = prices.length ? Math.min(...prices) : 0
+      const totalStock = validKitLines.reduce((s, c) =>
+        s + parseInt(kitLines[c.tamanho + '|' + c.pacote].stock || '0'), 0)
+
+      const { data: product, error: e1 } = await supabase
+        .from('products')
+        .insert({
+          org_id:         orgId,
+          name:           kitName.trim(),
+          price:          finalPrice,
+          stock_quantity: totalStock,
+          category_id:    kitCatId || null,
+          is_active:      true,
+          sku:            null,
+        })
+        .select('id')
+        .single()
+      if (e1) throw e1
+
+      const variantRows = validKitLines.map(c => {
+        const key = c.tamanho + '|' + c.pacote
+        const kl  = kitLines[key] || {}
+        return {
+          org_id:         orgId,
+          product_id:     product.id,
+          attributes:     { tamanho: c.tamanho, pacote: c.pacote },
+          stock_quantity: parseInt(kl.stock || '0'),
+          price_override: kl.price ? parseFloat(kl.price) : null,
+          is_active:      true,
+        }
+      })
+      const { error: e2 } = await supabase
+        .from('product_variants')
+        .insert(variantRows)
+      if (e2) throw e2
+
+      onSaved()
+      onClose()
+    } catch (err) {
+      alert('Erro ao salvar: ' + err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  /* ── RENDER ── */
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center
+      justify-center p-4">
+      <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl
+        max-h-[90vh] overflow-y-auto">
+
+        {/* Header */}
+        <div className="flex items-center justify-between p-5
+          border-b border-gray-100">
+          <h2 className="text-base font-black text-gray-900">
+            Cadastro rápido
+          </h2>
+          <button onClick={onClose}
+            className="w-8 h-8 rounded-xl bg-gray-100 flex
+              items-center justify-center">
+            <X size={16} className="text-gray-500" />
+          </button>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex border-b border-gray-100">
+          {TABS.map(t => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className="px-5 py-3 text-sm font-bold transition-colors"
+              style={{
+                borderBottom: tab === t.key
+                  ? `2px solid ${color}` : '2px solid transparent',
+                color: tab === t.key ? color : '#6b7280',
+              }}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="p-5">
+
+          {/* ── ABA SIMPLES ── */}
+          {tab === 'simples' && (
+            <div className="space-y-4">
+              {/* Categoria */}
+              <div>
+                <label className="text-[11px] font-bold text-gray-400
+                  uppercase tracking-wide block mb-1.5">
+                  Categoria (opcional)
+                </label>
+                <select
+                  value={simpleCatId}
+                  onChange={e => setSimpleCatId(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border
+                    border-gray-200 text-sm outline-none"
+                >
+                  <option value="">Sem categoria</option>
+                  {categories.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Cabeçalho da lista */}
+              <div className="grid gap-2"
+                style={{ gridTemplateColumns: '1fr 80px 80px 70px 60px 28px' }}>
+                {['Nome', 'Preço', 'Custo', 'Estoque', 'Mín.', ''].map(h => (
+                  <span key={h} className="text-[10px] font-bold text-gray-400
+                    uppercase tracking-wide">{h}</span>
+                ))}
+              </div>
+
+              {/* Linhas */}
+              <div className="space-y-2">
+                {lines.map(l => (
+                  <div key={l._key} className="grid gap-2 items-center"
+                    style={{ gridTemplateColumns: '1fr 80px 80px 70px 60px 28px' }}>
+                    <input
+                      type="text"
+                      placeholder="Nome do produto"
+                      value={l.name}
+                      onChange={e => updateLine(l._key, 'name', e.target.value)}
+                      className="px-3 py-2 rounded-xl border border-gray-200
+                        text-sm outline-none"
+                    />
+                    <input
+                      type="number"
+                      placeholder="0,00"
+                      value={l.price}
+                      onChange={e => updateLine(l._key, 'price', e.target.value)}
+                      className="px-3 py-2 rounded-xl border border-gray-200
+                        text-sm outline-none"
+                    />
+                    <input
+                      type="number"
+                      placeholder="—"
+                      value={l.cost}
+                      onChange={e => updateLine(l._key, 'cost', e.target.value)}
+                      className="px-3 py-2 rounded-xl border border-gray-200
+                        text-sm outline-none text-gray-400"
+                    />
+                    <input
+                      type="number"
+                      placeholder="0"
+                      value={l.stock}
+                      onChange={e => updateLine(l._key, 'stock', e.target.value)}
+                      className="px-3 py-2 rounded-xl border border-gray-200
+                        text-sm outline-none"
+                    />
+                    <input
+                      type="number"
+                      placeholder="5"
+                      value={l.min_stock}
+                      onChange={e => updateLine(l._key, 'min_stock', e.target.value)}
+                      className="px-3 py-2 rounded-xl border border-gray-200
+                        text-sm outline-none text-gray-400"
+                    />
+                    <button
+                      onClick={() => removeLine(l._key)}
+                      disabled={lines.length <= 1}
+                      className="w-7 h-7 rounded-lg bg-red-50 flex items-center
+                        justify-center disabled:opacity-30"
+                    >
+                      <X size={12} className="text-red-400" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <button
+                onClick={addLine}
+                className="w-full py-2 rounded-xl border border-dashed
+                  border-gray-300 text-xs font-bold text-gray-400
+                  hover:border-gray-400 transition-colors"
+              >
+                + Adicionar linha
+              </button>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  onClick={onClose}
+                  className="flex-1 py-2.5 rounded-xl bg-gray-100
+                    text-gray-700 font-bold text-sm"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={saveSimples}
+                  disabled={saving || !validLines.length}
+                  className="flex-2 px-6 py-2.5 rounded-xl text-white
+                    font-bold text-sm disabled:opacity-40"
+                  style={{ backgroundColor: color, flex: 2 }}
+                >
+                  {saving ? 'Salvando...'
+                    : `Salvar ${validLines.length} produto${validLines.length > 1 ? 's' : ''}`}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── ABA KIT ── */}
+          {tab === 'kit' && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-bold text-gray-400
+                    uppercase tracking-wide block mb-1.5">Nome</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Sacola Preta"
+                    value={kitName}
+                    onChange={e => setKitName(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border
+                      border-gray-200 text-sm outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-gray-400
+                    uppercase tracking-wide block mb-1.5">Categoria</label>
+                  <select
+                    value={kitCatId}
+                    onChange={e => setKitCatId(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border
+                      border-gray-200 text-sm outline-none"
+                  >
+                    <option value="">Selecione...</option>
+                    {kitCategories.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {combos.length === 0 ? (
+                <div className="text-center py-8 text-sm text-gray-400">
+                  Configure tamanhos e pacotes em{' '}
+                  <strong>Configurações › Grade de Variações</strong>
+                </div>
+              ) : (
+                <>
+                  {/* Cabeçalho */}
+                  <div className="grid gap-2"
+                    style={{ gridTemplateColumns: '1fr 1fr 80px 80px 70px' }}>
+                    {['Tamanho', 'Pacote', 'Preço', 'Custo', 'Estoque'].map(h => (
+                      <span key={h} className="text-[10px] font-bold text-gray-400
+                        uppercase tracking-wide">{h}</span>
+                    ))}
+                  </div>
+
+                  {/* Combinações */}
+                  <div className="space-y-2">
+                    {combos.map(c => {
+                      const key = c.tamanho + '|' + c.pacote
+                      const kl  = kitLines[key] || {}
+                      return (
+                        <div key={key} className="grid gap-2 items-center"
+                          style={{ gridTemplateColumns: '1fr 1fr 80px 80px 70px' }}>
+                          <span className="text-sm text-gray-700 px-3 py-2
+                            bg-gray-50 rounded-xl">{c.tamanho}</span>
+                          <span className="text-sm text-gray-700 px-3 py-2
+                            bg-gray-50 rounded-xl">{c.pacote}</span>
+                          <input
+                            type="number"
+                            placeholder="0,00"
+                            value={kl.price || ''}
+                            onChange={e => updateKitLine(key, 'price', e.target.value)}
+                            className="px-3 py-2 rounded-xl border border-gray-200
+                              text-sm outline-none"
+                          />
+                          <input
+                            type="number"
+                            placeholder="—"
+                            value={kl.cost || ''}
+                            onChange={e => updateKitLine(key, 'cost', e.target.value)}
+                            className="px-3 py-2 rounded-xl border border-gray-200
+                              text-sm outline-none text-gray-400"
+                          />
+                          <input
+                            type="number"
+                            placeholder="0"
+                            value={kl.stock || ''}
+                            onChange={e => updateKitLine(key, 'stock', e.target.value)}
+                            className="px-3 py-2 rounded-xl border border-gray-200
+                              text-sm outline-none"
+                          />
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      onClick={onClose}
+                      className="flex-1 py-2.5 rounded-xl bg-gray-100
+                        text-gray-700 font-bold text-sm"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={saveKit}
+                      disabled={saving || !kitName.trim() || !validKitLines.length}
+                      className="flex-2 px-6 py-2.5 rounded-xl text-white
+                        font-bold text-sm disabled:opacity-40"
+                      style={{ backgroundColor: color, flex: 2 }}
+                    >
+                      {saving ? 'Salvando...'
+                        : `Salvar ${kitName || 'produto'} (${validKitLines.length} variações)`}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ── modal ───────────────────────────────────────────────── */
 
 function ProductModal({
@@ -418,6 +833,7 @@ export default function Produtos() {
   const [products, setProducts] = useState([])
   const [loading, setLoading]   = useState(true)
   const [modal, setModal]       = useState(null)   // null | 'new' | product
+  const [quickModal, setQuickModal] = useState(false)
   const [form, setForm]         = useState(EMPTY)
   const [saving, setSaving]     = useState(false)
   const [deleting, setDeleting] = useState(null)
@@ -755,14 +1171,25 @@ export default function Produtos() {
           <p className="text-xs text-gray-400 mt-0.5">{products.length} cadastrado{products.length !== 1 ? 's' : ''}</p>
         </div>
         {canManage ? (
-          <button
-            onClick={openNew}
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-white text-sm font-bold shadow-sm active:scale-95 transition-transform"
-            style={{ backgroundColor: color }}
-          >
-            <Plus size={15} />
-            Novo produto
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setQuickModal(true)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl
+                border text-sm font-bold transition-colors"
+              style={{ borderColor: color, color: color }}
+            >
+              <List size={15} />
+              Cadastro rápido
+            </button>
+            <button
+              onClick={openNew}
+              className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-white text-sm font-bold shadow-sm active:scale-95 transition-transform"
+              style={{ backgroundColor: color }}
+            >
+              <Plus size={15} />
+              Novo produto
+            </button>
+          </div>
         ) : (
           <div className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-gray-100 text-gray-400 text-sm font-bold cursor-not-allowed" title="Sem permissão para gerenciar produtos">
             <Lock size={14} />
@@ -1116,6 +1543,20 @@ export default function Produtos() {
           techForm={techForm}
           setTechForm={setTechForm}
           orgMinStock={tenant?.min_stock_alert || 5}
+        />
+      )}
+
+      {/* Quick Add Modal */}
+      {quickModal && (
+        <QuickAddModal
+          orgId={orgId}
+          segment={segment}
+          categories={categories}
+          catSegmentMap={catSegmentMap}
+          gradeConfig={gradeConfig}
+          color={color}
+          onClose={() => setQuickModal(false)}
+          onSaved={() => { load(); setQuickModal(false) }}
         />
       )}
 
