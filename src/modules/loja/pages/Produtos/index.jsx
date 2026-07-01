@@ -421,6 +421,7 @@ export default function Produtos() {
 
   /* segment-specific state */
   const [gradeConfig, setGradeConfig]       = useState(null)
+  const [hasGradeCategories, setHasGradeCategories] = useState(false)
   const [variants, setVariants]             = useState([])
   const [variantAttrMode, setVariantAttrMode] = useState('tamanho')
   const [techForm, setTechForm]             = useState({ serial_number: '', imei: '', warranty_months: '', warranty_from: todayISO() })
@@ -481,13 +482,23 @@ export default function Produtos() {
   useEffect(() => { if (showCategories) loadCategories() }, [orgId, showCategories])
   useEffect(() => { loadOrgSegments() }, [orgId])
   useEffect(() => {
+    if (!orgId) return
+    supabase
+      .from('categories')
+      .select('segment_id')
+      .eq('org_id', orgId)
+      .in('segment_id', ['moda', 'kit'])
+      .then(({ data }) => setHasGradeCategories((data || []).length > 0))
+  }, [orgId])
+  useEffect(() => {
     const hasGrade =
       segment === 'moda' || segment === 'kit' ||
       orgSegments.some(s => s.id === 'moda' || s.id === 'kit')
-    if (!orgId || !hasGrade) return
+    if (!orgId) return
+    if (!hasGrade && !hasGradeCategories) return
     supabase.from('organizations').select('grade_config').eq('id', orgId).single()
       .then(({ data }) => setGradeConfig(data?.grade_config || null))
-  }, [orgId, segment, orgSegments])
+  }, [orgId, segment, orgSegments, hasGradeCategories])
 
   /* open new / edit */
   function openNew() {
