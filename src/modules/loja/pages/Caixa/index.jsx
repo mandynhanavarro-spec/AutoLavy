@@ -62,6 +62,11 @@ function itemMaxQty(item) {
   return item.variant ? item.variant.stock_quantity : item.product.stock_quantity
 }
 
+function variantLabel(variant) {
+  const attrs = variant.attributes || {}
+  return Object.values(attrs).filter(Boolean).join(' · ')
+}
+
 /* ─── VariantSelectModal ──────────────────────────────────── */
 
 function VariantSelectModal({ product, variants, onSelect, onClose }) {
@@ -1015,14 +1020,64 @@ export default function Caixa() {
                   ))}
 
                   {hasVariants && (
-                    <button
-                      onClick={() => !noStock && setVariantModal({ product, variants: variantsByProduct[product.id] })}
-                      disabled={noStock}
-                      className="px-3 py-1.5 rounded-xl text-white text-xs font-bold shrink-0 disabled:cursor-not-allowed active:scale-95 transition-transform"
-                      style={{ backgroundColor: noStock ? '#d1d5db' : color }}
-                    >
-                      {variantInCart > 0 ? `${variantInCart} ✓` : 'Selecionar'}
-                    </button>
+                    <div className="flex flex-wrap gap-1.5 shrink-0">
+                      {(variantsByProduct[product.id] || []).map(variant => {
+                        const inCartV  = cart.find(i => i.cartKey === variant.id)
+                        const noStockV = variant.stock_quantity <= 0
+                        const label    = variantLabel(variant)
+
+                        if (inCartV) {
+                          return (
+                            <div key={variant.id}
+                              className="flex items-center gap-1 bg-gray-50
+                                rounded-xl px-1.5 py-0.5">
+                              <button
+                                onClick={() => changeQty(variant.id, inCartV.qty - 1)}
+                                className="w-6 h-6 rounded-lg bg-white shadow-sm
+                                  flex items-center justify-center"
+                              >
+                                {inCartV.qty === 1
+                                  ? <Trash2 size={11} className="text-red-400" />
+                                  : <Minus size={11} className="text-gray-600" />
+                                }
+                              </button>
+                              <span className="text-xs font-black text-gray-900
+                                min-w-[14px] text-center">{inCartV.qty}</span>
+                              <button
+                                onClick={() => changeQty(variant.id, inCartV.qty + 1)}
+                                disabled={inCartV.qty >= variant.stock_quantity}
+                                className="w-6 h-6 rounded-lg bg-white shadow-sm
+                                  flex items-center justify-center disabled:opacity-30"
+                              >
+                                <Plus size={11} className="text-gray-600" />
+                              </button>
+                              <span className="text-xs font-semibold text-gray-500
+                                pl-0.5">{label}</span>
+                            </div>
+                          )
+                        }
+
+                        return (
+                          <button
+                            key={variant.id}
+                            onClick={() => !noStockV && addItem(product, variant)}
+                            disabled={noStockV}
+                            className="flex items-center gap-1 px-2.5 py-1.5
+                              rounded-xl text-xs font-bold border transition-all
+                              disabled:opacity-30 disabled:cursor-not-allowed
+                              active:scale-95"
+                            style={noStockV
+                              ? { borderColor: '#e5e7eb', color: '#9ca3af' }
+                              : { backgroundColor: color, color: 'white',
+                                  borderColor: color }
+                            }
+                          >
+                            {label}
+                            {!noStockV && <Plus size={11} />}
+                          </button>
+                        )
+                      })}
+                    </div>
                   )}
                 </div>
               )
@@ -1110,17 +1165,68 @@ export default function Caixa() {
                     </button>
                   ))}
 
-                  {/* Variant: Selecionar button */}
+                  {/* Variant: botões inline por variante */}
                   {hasVariants && (
-                    <button
-                      onClick={() => !noStock && setVariantModal({ product, variants: variantsByProduct[product.id] })}
-                      disabled={noStock}
-                      className="flex items-center justify-center gap-1 py-2 rounded-xl text-white text-xs font-bold disabled:cursor-not-allowed active:scale-95 transition-transform"
-                      style={{ backgroundColor: noStock ? '#d1d5db' : color }}
-                    >
-                      <Plus size={13} />
-                      {variantInCart > 0 ? `${variantInCart} no carrinho` : 'Selecionar'}
-                    </button>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(variantsByProduct[product.id] || []).map(variant => {
+                        const inCartV  = cart.find(i => i.cartKey === variant.id)
+                        const noStockV = variant.stock_quantity <= 0
+                        const label    = variantLabel(variant)
+
+                        if (inCartV) {
+                          return (
+                            <div key={variant.id}
+                              className="flex items-center gap-1 bg-gray-50
+                                rounded-xl px-1.5 py-0.5 flex-1 justify-between">
+                              <span className="text-xs font-semibold text-gray-500">
+                                {label}
+                              </span>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => changeQty(variant.id, inCartV.qty - 1)}
+                                  className="w-6 h-6 rounded-lg bg-white shadow-sm
+                                    flex items-center justify-center"
+                                >
+                                  {inCartV.qty === 1
+                                    ? <Trash2 size={11} className="text-red-400" />
+                                    : <Minus size={11} className="text-gray-600" />
+                                  }
+                                </button>
+                                <span className="text-xs font-black text-gray-900
+                                  min-w-[14px] text-center">{inCartV.qty}</span>
+                                <button
+                                  onClick={() => changeQty(variant.id, inCartV.qty + 1)}
+                                  disabled={inCartV.qty >= variant.stock_quantity}
+                                  className="w-6 h-6 rounded-lg bg-white shadow-sm
+                                    flex items-center justify-center disabled:opacity-30"
+                                >
+                                  <Plus size={11} className="text-gray-600" />
+                                </button>
+                              </div>
+                            </div>
+                          )
+                        }
+
+                        return (
+                          <button
+                            key={variant.id}
+                            onClick={() => !noStockV && addItem(product, variant)}
+                            disabled={noStockV}
+                            className="flex items-center justify-center gap-1
+                              flex-1 py-1.5 rounded-xl text-xs font-bold border
+                              transition-all disabled:opacity-30 active:scale-95"
+                            style={noStockV
+                              ? { borderColor: '#e5e7eb', color: '#9ca3af' }
+                              : { backgroundColor: color, color: 'white',
+                                  borderColor: color }
+                            }
+                          >
+                            {label}
+                            {!noStockV && <Plus size={11} />}
+                          </button>
+                        )
+                      })}
+                    </div>
                   )}
                 </div>
               )
