@@ -258,8 +258,10 @@ function QuickAddModal({
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center
       justify-center p-4">
-      <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl
-        max-h-[90vh] overflow-y-auto">
+      <div className={`bg-white rounded-2xl w-full shadow-2xl
+        max-h-[90vh] overflow-y-auto transition-all ${
+        hasBarcode ? 'max-w-4xl' : 'max-w-2xl'
+      }`}>
 
         {/* Header */}
         <div className="flex items-center justify-between p-5
@@ -495,7 +497,7 @@ function QuickAddModal({
 
               {/* Cabeçalho da lista */}
               <div className="grid gap-2"
-                style={{ gridTemplateColumns: hasBarcode ? '1fr 80px 80px 70px 60px 140px 28px' : '1fr 80px 80px 70px 60px 28px' }}>
+                style={{ gridTemplateColumns: hasBarcode ? '1.5fr 70px 70px 60px 50px 130px 28px' : '1fr 80px 80px 70px 60px 28px' }}>
                 {(hasBarcode
                   ? ['Nome', 'Preço', 'Custo', 'Estoque', 'Mín.', 'Código de barras', '']
                   : ['Nome', 'Preço', 'Custo', 'Estoque', 'Mín.', '']
@@ -509,7 +511,7 @@ function QuickAddModal({
               <div className="space-y-2">
                 {lines.map(l => (
                   <div key={l._key} className="grid gap-2 items-center"
-                    style={{ gridTemplateColumns: hasBarcode ? '1fr 80px 80px 70px 60px 140px 28px' : '1fr 80px 80px 70px 60px 28px' }}>
+                    style={{ gridTemplateColumns: hasBarcode ? '1.5fr 70px 70px 60px 50px 130px 28px' : '1fr 80px 80px 70px 60px 28px' }}>
                     <input
                       type="text"
                       placeholder="Nome do produto"
