@@ -573,17 +573,31 @@ export default function Produtos() {
     if (effectiveSeg !== 'moda' && effectiveSeg !== 'kit' && !form.price) return
     setSaving(true)
     let finalPrice = parseFloat(form.price || '0')
+    let finalStock = parseInt(form.stock_quantity || '0')
+    let variantRows = []
     if (effectiveSeg === 'moda' || effectiveSeg === 'kit') {
-      const prices = variants
-        .map(v => parseFloat(v.price_override))
-        .filter(n => !isNaN(n) && n > 0)
+      variantRows = variants
+        .filter(v => v.cor || v.attrVal)
+        .map(v => ({
+          org_id: orgId,
+          attributes: effectiveSeg === 'kit'
+            ? { tamanho: v.cor, pacote: v.attrVal }
+            : { cor: v.cor, [variantAttrMode]: v.attrVal },
+          stock_quantity: parseInt(v.stock_quantity || '0'),
+          price_override: v.price_override ? parseFloat(v.price_override) : null,
+          is_active: true,
+        }))
+      const prices = variantRows
+        .map(v => v.price_override)
+        .filter(n => n != null && n > 0)
       if (prices.length > 0) finalPrice = Math.min(...prices)
+      finalStock = variantRows.reduce((s, v) => s + v.stock_quantity, 0)
     }
     const payload = {
       name:            form.name.trim(),
       price:           finalPrice,
       cost_price:      parseFloat(form.cost_price || '0'),
-      stock_quantity:  parseInt(form.stock_quantity || '0'),
+      stock_quantity:  finalStock,
       min_stock_alert: parseInt(form.min_stock_alert || '5'),
       sku:             form.sku.trim() || null,
       category_id:     form.category_id || null,
@@ -600,20 +614,10 @@ export default function Produtos() {
 
     if (productId && (effectiveSeg === 'moda' || effectiveSeg === 'kit')) {
       await supabase.from('product_variants').delete().eq('product_id', productId).eq('org_id', orgId)
-      const variantRows = variants
-        .filter(v => v.cor || v.attrVal)
-        .map(v => ({
-          org_id: orgId,
-          product_id: productId,
-          attributes: effectiveSeg === 'kit'
-            ? { tamanho: v.cor, pacote: v.attrVal }
-            : { cor: v.cor, [variantAttrMode]: v.attrVal },
-          stock_quantity: parseInt(v.stock_quantity || '0'),
-          price_override: v.price_override ? parseFloat(v.price_override) : null,
-          is_active: true,
-        }))
       if (variantRows.length > 0) {
-        await supabase.from('product_variants').insert(variantRows)
+        await supabase.from('product_variants').insert(
+          variantRows.map(v => ({ ...v, product_id: productId }))
+        )
       }
     }
 
