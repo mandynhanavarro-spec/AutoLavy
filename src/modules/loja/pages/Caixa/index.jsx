@@ -65,6 +65,14 @@ function variantLabel(variant) {
   return Object.values(attrs).filter(Boolean).join(' · ')
 }
 
+function packageWeight(variant) {
+  const attrs = { ...(variant.attributes || {}) }
+  delete attrs.tamanho
+  const value = Object.values(attrs).filter(Boolean)[0] || ''
+  const num = parseFloat(String(value).replace(/[^\d.]/g, ''))
+  return isNaN(num) ? 0 : num
+}
+
 function groupVariantsBySize(variants) {
   const groups = {}
   const order = []
@@ -77,6 +85,9 @@ function groupVariantsBySize(variants) {
       order.push(sizeKey)
     }
     groups[sizeKey].push(v)
+  })
+  Object.keys(groups).forEach(size => {
+    groups[size].sort((a, b) => packageWeight(a) - packageWeight(b))
   })
   return order.map(size => ({ size, variants: groups[size] }))
 }
