@@ -93,7 +93,6 @@ function QuickAddModal({
         stock_quantity: parseInt(l.stock || '0'),
         min_stock_alert: l.min_stock ? parseInt(l.min_stock) : 5,
         category_id:    simpleCatId || null,
-        is_active:      true,
         sku:            null,
       }))
       const { error } = await supabase.from('products').insert(rows)
@@ -146,7 +145,6 @@ function QuickAddModal({
           price:          finalPrice,
           stock_quantity: totalStock,
           category_id:    kitCatId || null,
-          is_active:      true,
           sku:            null,
         })
         .select('id')
