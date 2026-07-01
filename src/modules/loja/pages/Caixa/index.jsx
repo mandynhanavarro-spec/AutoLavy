@@ -725,7 +725,20 @@ export default function Caixa() {
   }
 
   /* ── product filter by register ──────────────────────────── */
-  const allowedCategoryIds = activeRegister?.product_filter?.category_ids || null
+  const pf = activeRegister?.product_filter
+  const allowedCategoryIds = (() => {
+    if (!pf) return null
+    // Formato novo: array de ids
+    if (Array.isArray(pf.category_ids) && pf.category_ids.length > 0) {
+      return pf.category_ids
+    }
+    // Formato antigo: id singular
+    if (pf.category_id) {
+      return [pf.category_id]
+    }
+    // Array vazio ou sem filtro → mostrar tudo
+    return null
+  })()
 
   const filtered = products.filter(p => {
     const q = search.toLowerCase()
