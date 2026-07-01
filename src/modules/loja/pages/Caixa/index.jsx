@@ -413,13 +413,15 @@ export default function Caixa() {
       const getSeg = p => localCatSegMap[p.category_id] || segment || 'geral'
 
       if (loaded.length > 0) {
-        const modaIds = loaded.filter(p => getSeg(p) === 'moda').map(p => p.id)
-        if (modaIds.length > 0) {
+        const gradeIds = loaded
+          .filter(p => getSeg(p) === 'moda' || getSeg(p) === 'kit')
+          .map(p => p.id)
+        if (gradeIds.length > 0) {
           const { data: vData } = await supabase
             .from('product_variants')
             .select('id, product_id, attributes, stock_quantity, price_override')
             .eq('org_id', orgId)
-            .in('product_id', modaIds)
+            .in('product_id', gradeIds)
             .eq('is_active', true)
           const byProduct = (vData || []).reduce((acc, v) => {
             if (!acc[v.product_id]) acc[v.product_id] = []
@@ -932,7 +934,7 @@ export default function Caixa() {
         ) : viewMode === 'lista' ? (
           <div className="space-y-2">
             {sorted.map(product => {
-              const hasVariants = getProductSegment(product) === 'moda' && (variantsByProduct[product.id]?.length > 0)
+              const hasVariants = ['moda', 'kit'].includes(getProductSegment(product)) && (variantsByProduct[product.id]?.length > 0)
               const noStock = hasVariants
                 ? !(variantsByProduct[product.id] || []).some(v => v.stock_quantity > 0)
                 : product.stock_quantity <= 0
@@ -1011,7 +1013,7 @@ export default function Caixa() {
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
             {sorted.map(product => {
-              const hasVariants = getProductSegment(product) === 'moda' && (variantsByProduct[product.id]?.length > 0)
+              const hasVariants = ['moda', 'kit'].includes(getProductSegment(product)) && (variantsByProduct[product.id]?.length > 0)
 
               /* stock check — variants use their own totals */
               const noStock = hasVariants
