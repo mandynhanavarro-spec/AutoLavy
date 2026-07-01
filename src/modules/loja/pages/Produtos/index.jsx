@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react'
-import { Plus, Pencil, Trash2, X, Package, AlertTriangle, FlaskConical, Lock, Tag, LayoutGrid, List } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Plus, Pencil, Trash2, X, Package, AlertTriangle, FlaskConical, Lock, Tag, LayoutGrid, List, Camera } from 'lucide-react'
+import { BrowserMultiFormatReader } from '@zxing/browser'
 import { supabase } from '../../../../shared/lib/supabase'
 import { useTenantContext } from '../../../../core/contexts/TenantContext'
 import { usePermissions } from '../../../../core/hooks/usePermissions'
@@ -58,15 +59,17 @@ function QuickAddModal({
 
   /* ── ABA SIMPLES ── */
   const [lines, setLines] = useState([
-    { _key: 1, name: '', price: '', cost: '', stock: '', min_stock: '' },
-    { _key: 2, name: '', price: '', cost: '', stock: '', min_stock: '' },
+    { _key: 1, name: '', price: '', cost: '', stock: '', min_stock: '', barcode: '' },
+    { _key: 2, name: '', price: '', cost: '', stock: '', min_stock: '', barcode: '' },
   ])
   const [simpleCatId, setSimpleCatId] = useState('')
+  const [hasBarcode, setHasBarcode] = useState(false)
+  const [scanningKey, setScanningKey] = useState(null)
 
   function addLine() {
     setLines(prev => [...prev, {
       _key: Date.now(), name: '', price: '',
-      cost: '', stock: '', min_stock: ''
+      cost: '', stock: '', min_stock: '', barcode: ''
     }])
   }
 
@@ -77,6 +80,15 @@ function QuickAddModal({
   function removeLine(key) {
     if (lines.length <= 1) return
     setLines(prev => prev.filter(l => l._key !== key))
+  }
+
+  function openScanner(key) {
+    setScanningKey(key)
+  }
+
+  function handleDetected(code) {
+    updateLine(scanningKey, 'barcode', code)
+    setScanningKey(null)
   }
 
   const validLines = lines.filter(l => l.name.trim() && l.price)
@@ -93,7 +105,7 @@ function QuickAddModal({
         stock_quantity: parseInt(l.stock || '0'),
         min_stock_alert: l.min_stock ? parseInt(l.min_stock) : 5,
         category_id:    simpleCatId || null,
-        sku:            null,
+        sku:            hasBarcode && l.barcode.trim() ? l.barcode.trim() : null,
       }))
       const { error } = await supabase.from('products').insert(rows)
       if (error) throw error
@@ -220,30 +232,46 @@ function QuickAddModal({
           {/* ── ABA SIMPLES ── */}
           {tab === 'simples' && (
             <div className="space-y-4">
-              {/* Categoria */}
-              <div>
-                <label className="text-[11px] font-bold text-gray-400
-                  uppercase tracking-wide block mb-1.5">
-                  Categoria (opcional)
+              {/* Categoria + código de barras */}
+              <div className="flex items-end justify-between gap-3">
+                <div className="flex-1">
+                  <label className="text-[11px] font-bold text-gray-400
+                    uppercase tracking-wide block mb-1.5">
+                    Categoria (opcional)
+                  </label>
+                  <select
+                    value={simpleCatId}
+                    onChange={e => setSimpleCatId(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border
+                      border-gray-200 text-sm outline-none"
+                  >
+                    <option value="">Sem categoria</option>
+                    {categories.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <label className="flex items-center gap-2 text-sm font-medium
+                  text-gray-600 cursor-pointer select-none pb-2">
+                  <input
+                    type="checkbox"
+                    checked={hasBarcode}
+                    onChange={e => setHasBarcode(e.target.checked)}
+                    className="w-4 h-4 rounded accent-current"
+                    style={{ accentColor: color }}
+                  />
+                  Tenho código de barras
                 </label>
-                <select
-                  value={simpleCatId}
-                  onChange={e => setSimpleCatId(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border
-                    border-gray-200 text-sm outline-none"
-                >
-                  <option value="">Sem categoria</option>
-                  {categories.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
               </div>
 
               {/* Cabeçalho da lista */}
               <div className="grid gap-2"
-                style={{ gridTemplateColumns: '1fr 80px 80px 70px 60px 28px' }}>
-                {['Nome', 'Preço', 'Custo', 'Estoque', 'Mín.', ''].map(h => (
-                  <span key={h} className="text-[10px] font-bold text-gray-400
+                style={{ gridTemplateColumns: hasBarcode ? '1fr 80px 80px 70px 60px 140px 28px' : '1fr 80px 80px 70px 60px 28px' }}>
+                {(hasBarcode
+                  ? ['Nome', 'Preço', 'Custo', 'Estoque', 'Mín.', 'Código de barras', '']
+                  : ['Nome', 'Preço', 'Custo', 'Estoque', 'Mín.', '']
+                ).map((h, i) => (
+                  <span key={i} className="text-[10px] font-bold text-gray-400
                     uppercase tracking-wide">{h}</span>
                 ))}
               </div>
@@ -252,7 +280,7 @@ function QuickAddModal({
               <div className="space-y-2">
                 {lines.map(l => (
                   <div key={l._key} className="grid gap-2 items-center"
-                    style={{ gridTemplateColumns: '1fr 80px 80px 70px 60px 28px' }}>
+                    style={{ gridTemplateColumns: hasBarcode ? '1fr 80px 80px 70px 60px 140px 28px' : '1fr 80px 80px 70px 60px 28px' }}>
                     <input
                       type="text"
                       placeholder="Nome do produto"
@@ -293,6 +321,28 @@ function QuickAddModal({
                       className="px-3 py-2 rounded-xl border border-gray-200
                         text-sm outline-none text-gray-400"
                     />
+                    {hasBarcode && (
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="text"
+                          placeholder="Código"
+                          value={l.barcode}
+                          onChange={e => updateLine(l._key, 'barcode', e.target.value)}
+                          className="w-full px-2 py-2 rounded-xl border border-gray-200
+                            text-sm outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => openScanner(l._key)}
+                          className="w-8 h-8 rounded-lg flex items-center justify-center
+                            shrink-0"
+                          style={{ backgroundColor: color + '15', color: color }}
+                          title="Escanear com a câmera"
+                        >
+                          <Camera size={14} />
+                        </button>
+                      </div>
+                    )}
                     <button
                       onClick={() => removeLine(l._key)}
                       disabled={lines.length <= 1}
@@ -452,6 +502,53 @@ function QuickAddModal({
 
         </div>
       </div>
+
+      {scanningKey && (
+        <BarcodeScannerModal
+          onDetect={handleDetected}
+          onClose={() => setScanningKey(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+/* ── scanner de código de barras (câmera) ───────────────────────────── */
+
+function BarcodeScannerModal({ onDetect, onClose }) {
+  const videoRef = useRef(null)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let controls
+    const codeReader = new BrowserMultiFormatReader()
+    codeReader.decodeFromVideoDevice(undefined, videoRef.current, (result, err, ctrl) => {
+      controls = ctrl
+      if (result) {
+        onDetect(result.getText())
+        ctrl.stop()
+      }
+    }).catch(() => setError('Não foi possível acessar a câmera'))
+
+    return () => { if (controls) controls.stop() }
+  }, [])
+
+  return (
+    <div className="fixed inset-0 z-[60] bg-black/80 flex flex-col
+      items-center justify-center p-4">
+      <button onClick={onClose}
+        className="absolute top-4 right-4 w-9 h-9 rounded-full
+          bg-white/20 flex items-center justify-center">
+        <X size={18} className="text-white" />
+      </button>
+      {error ? (
+        <p className="text-white text-sm">{error}</p>
+      ) : (
+        <video ref={videoRef} className="w-full max-w-sm rounded-xl" />
+      )}
+      <p className="text-white/70 text-xs mt-4">
+        Aponte a câmera para o código de barras
+      </p>
     </div>
   )
 }
@@ -1169,25 +1266,15 @@ export default function Produtos() {
           <p className="text-xs text-gray-400 mt-0.5">{products.length} cadastrado{products.length !== 1 ? 's' : ''}</p>
         </div>
         {canManage ? (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setQuickModal(true)}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl
-                border text-sm font-bold transition-colors"
-              style={{ borderColor: color, color: color }}
-            >
-              <List size={15} />
-              Cadastro rápido
-            </button>
-            <button
-              onClick={openNew}
-              className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-white text-sm font-bold shadow-sm active:scale-95 transition-transform"
-              style={{ backgroundColor: color }}
-            >
-              <Plus size={15} />
-              Novo produto
-            </button>
-          </div>
+          <button
+            onClick={() => setQuickModal(true)}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl
+              border text-sm font-bold transition-colors"
+            style={{ borderColor: color, color: color }}
+          >
+            <List size={15} />
+            Cadastro rápido
+          </button>
         ) : (
           <div className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-gray-100 text-gray-400 text-sm font-bold cursor-not-allowed" title="Sem permissão para gerenciar produtos">
             <Lock size={14} />
