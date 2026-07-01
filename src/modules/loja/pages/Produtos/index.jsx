@@ -1515,8 +1515,17 @@ export default function Produtos() {
   async function del(product) {
     if (!window.confirm(`Excluir "${product.name}"?`)) return
     setDeleting(product.id)
-    await supabase.from('products').delete().eq('id', product.id).eq('org_id', orgId)
+    await supabase.from('product_variants').delete().eq('product_id', product.id).eq('org_id', orgId)
+    await supabase.from('product_attributes').delete().eq('product_id', product.id).eq('org_id', orgId)
+    const { error } = await supabase.from('products').delete().eq('id', product.id).eq('org_id', orgId)
     setDeleting(null)
+    if (error) {
+      alert(
+        'Não foi possível excluir este produto: ' + error.message +
+        '\n\nIsso costuma acontecer quando já existem vendas registradas com ele.'
+      )
+      return
+    }
     setProducts(prev => prev.filter(p => p.id !== product.id))
   }
 
