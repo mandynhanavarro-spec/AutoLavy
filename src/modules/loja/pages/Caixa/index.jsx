@@ -92,6 +92,16 @@ function groupVariantsBySize(variants) {
   return order.map(size => ({ size, variants: groups[size] }))
 }
 
+function groupPriceRange(group, fallbackPrice) {
+  const prices = group.variants
+    .map(v => v.price_override != null ? Number(v.price_override) : Number(fallbackPrice))
+    .filter(p => !isNaN(p))
+  if (!prices.length) return brl(fallbackPrice)
+  const min = Math.min(...prices)
+  const max = Math.max(...prices)
+  return min === max ? brl(min) : `${brl(min)} – ${brl(max)}`
+}
+
 function packageLabel(variant) {
   const attrs = { ...(variant.attributes || {}) }
   delete attrs.tamanho
@@ -1015,7 +1025,7 @@ export default function Caixa() {
                           {product.name} · {group.size}
                         </p>
                         <div className="flex items-center gap-2 mt-0.5">
-                          <span className="text-[13px] font-black" style={{ color }}>{brl(product.price)}</span>
+                          <span className="text-[13px] font-black" style={{ color }}>{groupPriceRange(group, product.price)}</span>
                           <span className="text-[10px] font-semibold text-gray-400">
                             {group.variants.reduce((s, v) => s + v.stock_quantity, 0)} un.
                           </span>
@@ -1235,7 +1245,7 @@ export default function Caixa() {
                           {product.name} · {group.size}
                         </p>
                         <p className="text-[15px] font-black mt-1.5" style={{ color }}>
-                          {brl(product.price)}
+                          {groupPriceRange(group, product.price)}
                         </p>
                         <p className="text-[10px] font-semibold mt-0.5 text-gray-400">
                           {group.variants.reduce((s, v) => s + v.stock_quantity, 0)} un.
