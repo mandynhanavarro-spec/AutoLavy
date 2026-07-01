@@ -1617,7 +1617,7 @@ export default function Produtos() {
             style={{ borderColor: color, color: color }}
           >
             <Plus size={15} />
-            + Produto
+            Produto
           </button>
         ) : (
           <div className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-gray-100 text-gray-400 text-sm font-bold cursor-not-allowed" title="Sem permissão para gerenciar produtos">
@@ -1649,7 +1649,7 @@ export default function Produtos() {
                 style={{ backgroundColor: color }}
               >
                 <Plus size={11} />
-                + Categoria
+                Categoria
               </button>
             )}
           </div>
