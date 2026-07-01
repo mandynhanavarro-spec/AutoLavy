@@ -1780,7 +1780,7 @@ export default function Produtos() {
           </div>
           <div className="flex flex-col gap-2 w-full max-w-xs">
             <button
-              onClick={openNew}
+              onClick={() => setQuickModal(true)}
               className="py-3 rounded-2xl text-white font-bold shadow-md"
               style={{ backgroundColor: color }}
             >
