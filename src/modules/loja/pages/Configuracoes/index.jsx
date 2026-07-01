@@ -152,6 +152,14 @@ export default function Configuracoes() {
     setRegisters(prev => prev.map(r => r.id === regId ? { ...r, product_filter: null } : r))
   }
 
+  /* estoque mínimo padrão (global) */
+  const [minStock, setMinStock]             = useState(5)
+  const [minStockSaving, setMinStockSaving] = useState(false)
+
+  useEffect(() => {
+    setMinStock(tenant?.min_stock_alert ?? 5)
+  }, [tenant?.min_stock_alert])
+
   /* org templates */
   const [templates, setTemplates]     = useState([])
   const [tplModal, setTplModal]       = useState(false)
@@ -447,6 +455,42 @@ export default function Configuracoes() {
             <Save size={14} />
             {storeSaved ? 'Dados salvos!' : savingStore ? 'Salvando...' : 'Salvar dados'}
           </button>
+        )}
+
+        {isAdmin && (
+          <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+            <div>
+              <p className="text-sm font-bold text-gray-900">
+                Estoque mínimo padrão
+              </p>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Alerta quando qualquer produto atingir esse limite.
+                Pode ser ajustado por categoria ou produto.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min="0"
+                value={minStock}
+                onChange={e => setMinStock(parseInt(e.target.value) || 0)}
+                className="w-20 px-3 py-2 rounded-xl border border-gray-200 text-sm text-center outline-none"
+              />
+              <button
+                onClick={async () => {
+                  setMinStockSaving(true)
+                  await supabase.from('organizations')
+                    .update({ min_stock_alert: minStock })
+                    .eq('id', orgId)
+                  setMinStockSaving(false)
+                }}
+                className="px-4 py-2 rounded-xl text-white text-sm font-bold"
+                style={{ backgroundColor: color }}
+              >
+                {minStockSaving ? 'Salvando...' : 'Salvar'}
+              </button>
+            </div>
+          </div>
         )}
       </Section>
 

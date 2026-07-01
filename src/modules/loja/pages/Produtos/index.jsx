@@ -48,6 +48,7 @@ function calcWarrantyUntil(from, months) {
 function ProductModal({
   editing, form, setForm, onSave, onClose, saving, color, categories, hasMultiplePDV,
   catSegmentMap, tenantSegment, gradeConfig, variants, setVariants, variantAttrMode, setVariantAttrMode, techForm, setTechForm,
+  orgMinStock,
 }) {
   const effectiveSegment = (form.category_id && catSegmentMap[form.category_id]) || tenantSegment || 'geral'
   const isKit  = effectiveSegment === 'kit'
@@ -100,7 +101,12 @@ function ProductModal({
                 value={form.category_id}
                 onChange={e => {
                   const newCatId = e.target.value
-                  setForm(f => ({ ...f, category_id: newCatId }))
+                  const newCat = categories.find(c => c.id === newCatId)
+                  setForm(f => ({
+                    ...f,
+                    category_id: newCatId,
+                    min_stock_alert: String(newCat?.min_stock_alert || orgMinStock),
+                  }))
                   if (!editing && (catSegmentMap[newCatId] === 'moda' || catSegmentMap[newCatId] === 'kit') && variants.length === 0) {
                     setVariants([{ _key: Date.now(), id: null, cor: '', attrVal: '', stock_quantity: '', price_override: '' }])
                   }
@@ -429,7 +435,7 @@ export default function Produtos() {
   /* categories */
   const [categories, setCategories]   = useState([])
   const [catModal, setCatModal]       = useState(null)   // null | 'new' | category
-  const [catForm, setCatForm]         = useState({ name: '', description: '', segment_id: '' })
+  const [catForm, setCatForm]         = useState({ name: '', description: '', segment_id: '', min_stock_alert: '' })
   const [catSaving, setCatSaving]     = useState(false)
   const [catDeleting, setCatDeleting] = useState(null)
   const [orgSegments, setOrgSegments] = useState([])
@@ -457,7 +463,7 @@ export default function Produtos() {
     if (!orgId) return
     const { data } = await supabase
       .from('categories')
-      .select('id, name, description, segment_id')
+      .select('id, name, description, segment_id, min_stock_alert')
       .eq('org_id', orgId)
       .order('name')
     setCategories(data || [])
@@ -500,9 +506,15 @@ export default function Produtos() {
       .then(({ data }) => setGradeConfig(data?.grade_config || null))
   }, [orgId, segment, orgSegments, hasGradeCategories])
 
+  /* estoque mínimo efetivo: categoria > padrão global > 5 */
+  function effectiveMinStock(categoryId) {
+    const cat = categories.find(c => c.id === categoryId)
+    return cat?.min_stock_alert || tenant?.min_stock_alert || 5
+  }
+
   /* open new / edit */
   function openNew() {
-    setForm(EMPTY)
+    setForm({ ...EMPTY, min_stock_alert: String(effectiveMinStock('')) })
     setVariants(
       (segment === 'moda' || segment === 'kit')
         ? [{ _key: Date.now(), id: null, cor: '', attrVal: '', stock_quantity: '', price_override: '' }]
@@ -686,18 +698,21 @@ export default function Produtos() {
     if (!catForm.name.trim()) return
     setCatSaving(true)
     const segmentId = catForm.segment_id || 'geral'
+    const minStockAlert = catForm.min_stock_alert ? parseInt(catForm.min_stock_alert) : null
     if (catModal === 'new') {
       await supabase.from('categories').insert({
         org_id: orgId,
         name: catForm.name.trim(),
         description: catForm.description.trim() || null,
         segment_id: segmentId,
+        min_stock_alert: minStockAlert,
       })
     } else {
       await supabase.from('categories').update({
         name: catForm.name.trim(),
         description: catForm.description.trim() || null,
         segment_id: segmentId,
+        min_stock_alert: minStockAlert,
       }).eq('id', catModal.id).eq('org_id', orgId)
     }
     setCatSaving(false)
@@ -771,7 +786,7 @@ export default function Produtos() {
                   const hasModa  = orgSegments.some(s => s.id === 'moda')
                   const hasGeral = orgSegments.some(s => s.id === 'geral')
                   const defaultSegment = hasModa ? 'moda' : hasGeral ? 'geral' : 'kit'
-                  setCatForm({ name: '', description: '', segment_id: defaultSegment })
+                  setCatForm({ name: '', description: '', segment_id: defaultSegment, min_stock_alert: '' })
                   setCatModal('new')
                 }}
                 className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-xl text-white active:scale-95 transition-transform"
@@ -798,7 +813,7 @@ export default function Produtos() {
                   {canManage && (
                     <>
                       <button
-                        onClick={() => { setCatForm({ name: cat.name, description: cat.description || '', segment_id: cat.segment_id || '' }); setCatModal(cat) }}
+                        onClick={() => { setCatForm({ name: cat.name, description: cat.description || '', segment_id: cat.segment_id || '', min_stock_alert: cat.min_stock_alert != null ? String(cat.min_stock_alert) : '' }); setCatModal(cat) }}
                         className="text-gray-300 hover:text-blue-500 transition-colors"
                         title="Editar categoria"
                       >
@@ -1100,6 +1115,7 @@ export default function Produtos() {
           setVariantAttrMode={setVariantAttrMode}
           techForm={techForm}
           setTechForm={setTechForm}
+          orgMinStock={tenant?.min_stock_alert || 5}
         />
       )}
 
@@ -1169,6 +1185,22 @@ export default function Produtos() {
                     </select>
                   )
                 })()}
+              </div>
+              <div>
+                <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wide block mb-1.5">
+                  Estoque mínimo (opcional)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  placeholder={`Padrão global (${tenant?.min_stock_alert || 5})`}
+                  value={catForm.min_stock_alert || ''}
+                  onChange={e => setCatForm(f => ({ ...f, min_stock_alert: e.target.value }))}
+                  className={fieldCls}
+                />
+                <p className="text-[11px] text-gray-400 mt-1">
+                  Vazio = usa o padrão global. Pode ser ajustado individualmente por produto.
+                </p>
               </div>
             </div>
 
