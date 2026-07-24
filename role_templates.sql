@@ -2,6 +2,16 @@
 -- AUTOLAVY - ROLE TEMPLATES + PERMISSOES ESTENDIDAS
 -- Execute este script no Supabase SQL Editor
 -- ============================================================
+--
+-- [DESATUALIZADO] A policy `role_templates_rls` definida neste arquivo
+-- foi SUBSTITUIDA na producao (projeto hhnbazjwdtymlouhufue) em
+-- 2026-07-24 (migration fix_role_templates_delete_exposure), pois a
+-- clausula `(org_id IS NULL AND auth.uid() IS NOT NULL)` no USING de uma
+-- policy FOR ALL liberava DELETE/UPDATE dos templates globais para
+-- qualquer usuario autenticado. Em producao existem hoje duas policies
+-- separadas (role_templates_select / role_templates_write) sem essa
+-- brecha. Este arquivo NAO reflete o schema real e e mantido apenas
+-- como historico.
 
 -- 1. Adicionar permissoes que ainda nao existem na coluna de profiles
 -- (can_close_cash e can_manage_products nao estavam no DEFAULT original)

@@ -1,6 +1,16 @@
 -- ############################################################
 -- AUTOLAVY SAAS MULTI-TENANT - SCHEMA COMPLETO DA VERSAO MAIOR
 -- ############################################################
+--
+-- [DESATUALIZADO] A policy `store_invites_public_read_signup` definida
+-- neste arquivo foi REMOVIDA da producao (projeto hhnbazjwdtymlouhufue)
+-- em 2026-07-24 (migration fix_store_invites_public_exposure), por expor
+-- a tabela store_invites inteira (incluindo initial_password em texto
+-- puro, CNPJ, whatsapp, login_email) a qualquer visitante anonimo sem
+-- exigir o token do convite. Em producao, o acesso publico ao convite
+-- agora e feito via a funcao SECURITY DEFINER get_invite_by_token(token),
+-- que so retorna o convite se o token bater exatamente. Este arquivo NAO
+-- reflete o schema real e e mantido apenas como historico.
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 

@@ -48,30 +48,27 @@ export default function Register() {
     }
 
     supabase
-      .from('store_invites')
-      .select('*')
-      .eq('token', token)
-      .eq('is_used', false)
-      .maybeSingle()
+      .rpc('get_invite_by_token', { invite_token: token })
       .then(({ data, error }) => {
-        if (error || !data) {
+        const invite = Array.isArray(data) ? data[0] : data
+        if (error || !invite) {
           setInviteError('Convite inválido ou já utilizado. Solicite um novo link ao administrador.')
           setStep('invalid')
           return
         }
-        if (new Date(data.expires_at) < new Date()) {
+        if (new Date(invite.expires_at) < new Date()) {
           setInviteError('Este convite expirou. Solicite um novo link ao administrador.')
           setStep('invalid')
           return
         }
-        setInvite(data)
+        setInvite(invite)
         setForm({
-          fullName: data.responsible_name || '',
-          email: data.login_email || '',
-          password: data.initial_password || '',
-          cnpj: data.company_document || '',
-          phone: data.whatsapp || '',
-          address: data.address || '',
+          fullName: invite.responsible_name || '',
+          email: invite.login_email || '',
+          password: invite.initial_password || '',
+          cnpj: invite.company_document || '',
+          phone: invite.whatsapp || '',
+          address: invite.address || '',
           themeColor: '#3b82f6',
         })
         setStep('form')
