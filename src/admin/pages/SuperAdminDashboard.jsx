@@ -1084,38 +1084,36 @@ export default function SuperAdminDashboard() {
           )}
 
           {/* ── PLANOS ── */}
-          {activeTab === 'planos' && (
-            <PlanosTab
-              ref={planosTabRef}
-              plans={plans}
-              featuresByPlan={featuresByPlan}
-              limitsByPlan={limitsByPlan}
-              loading={loading}
-              loadAdminData={loadAdminData}
-              showSuccess={showSuccess}
-              showError={showError}
-              startAction={startAction}
-              finishAction={finishAction}
-              isActionRunning={isActionRunning}
-            />
-          )}
+          <PlanosTab
+            ref={planosTabRef}
+            isActive={activeTab === 'planos'}
+            plans={plans}
+            featuresByPlan={featuresByPlan}
+            limitsByPlan={limitsByPlan}
+            loading={loading}
+            loadAdminData={loadAdminData}
+            showSuccess={showSuccess}
+            showError={showError}
+            startAction={startAction}
+            finishAction={finishAction}
+            isActionRunning={isActionRunning}
+          />
 
           {/* ── PAGAMENTOS ── */}
-          {activeTab === 'pagamentos' && (
-            <PagamentosTab
-              ref={pagamentosTabRef}
-              payments={payments}
-              organizations={organizations}
-              subscriptions={subscriptions}
-              loading={loading}
-              loadAdminData={loadAdminData}
-              showSuccess={showSuccess}
-              showError={showError}
-              startAction={startAction}
-              finishAction={finishAction}
-              isActionRunning={isActionRunning}
-            />
-          )}
+          <PagamentosTab
+            ref={pagamentosTabRef}
+            isActive={activeTab === 'pagamentos'}
+            payments={payments}
+            organizations={organizations}
+            subscriptions={subscriptions}
+            loading={loading}
+            loadAdminData={loadAdminData}
+            showSuccess={showSuccess}
+            showError={showError}
+            startAction={startAction}
+            finishAction={finishAction}
+            isActionRunning={isActionRunning}
+          />
 
           {/* ── CONFIGURAÇÕES ── */}
           {activeTab === 'configuracoes' && (

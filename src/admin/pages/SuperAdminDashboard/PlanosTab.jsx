@@ -52,7 +52,7 @@ function StatusBadge({ value }) {
 /* ── component ─────────────────────────────────────────────── */
 
 const PlanosTab = forwardRef(function PlanosTab(
-  { plans, featuresByPlan, limitsByPlan, loading, loadAdminData, showSuccess, showError, startAction, finishAction, isActionRunning },
+  { plans, featuresByPlan, limitsByPlan, loading, loadAdminData, showSuccess, showError, startAction, finishAction, isActionRunning, isActive },
   ref
 ) {
   const [showPlanModal, setShowPlanModal] = useState(false)
@@ -123,55 +123,63 @@ const PlanosTab = forwardRef(function PlanosTab(
     openNewPlan: () => setShowPlanModal(true),
   }))
 
+  /* Componente fica sempre montado (ver SuperAdminDashboard.jsx) para que
+     planosTabRef funcione mesmo a partir de outra aba (ex.: Dashboard).
+     Só pulamos a renderização quando não há nem aba ativa nem modal aberto —
+     o modal precisa aparecer mesmo com isActive=false. */
+  if (!isActive && !showPlanModal) return null
+
   /* ── render ──────────────────────────────────────────────── */
 
   return (
     <>
-      <section className="grid gap-4 lg:grid-cols-2">
-        {plans.map(plan => {
-          const feats = featuresByPlan[plan.id] || {}
-          const lims = limitsByPlan[plan.id] || {}
-          return (
-            <div key={plan.id} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm space-y-4">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h3 className="text-lg font-black text-gray-900">{plan.name}</h3>
-                  <p className="text-xs text-gray-400 mt-0.5">{plan.description || 'Sem descrição'}</p>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <StatusBadge value={plan.status} />
-                  <button
-                    type="button"
-                    onClick={() => openEditPlan(plan)}
-                    className="w-8 h-8 rounded-xl bg-gray-50 hover:bg-violet-50 flex items-center justify-center transition-colors"
-                    title="Editar plano"
-                  >
-                    <Pencil size={13} className="text-gray-400 hover:text-violet-600" />
-                  </button>
-                </div>
-              </div>
-              <div className="text-3xl font-black" style={{ color: '#7c3aed' }}>
-                R$ {Number(plan.price || 0).toFixed(2)}
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                {PLAN_FEATURES.map(f => (
-                  <div key={f.key} className={`rounded-xl px-3 py-2.5 text-xs font-bold ${feats[f.key] ? 'bg-violet-50 text-violet-700' : 'bg-gray-50 text-gray-400'}`}>
-                    {f.label}
+      {isActive && (
+        <section className="grid gap-4 lg:grid-cols-2">
+          {plans.map(plan => {
+            const feats = featuresByPlan[plan.id] || {}
+            const lims = limitsByPlan[plan.id] || {}
+            return (
+              <div key={plan.id} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm space-y-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h3 className="text-lg font-black text-gray-900">{plan.name}</h3>
+                    <p className="text-xs text-gray-400 mt-0.5">{plan.description || 'Sem descrição'}</p>
                   </div>
-                ))}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <StatusBadge value={plan.status} />
+                    <button
+                      type="button"
+                      onClick={() => openEditPlan(plan)}
+                      className="w-8 h-8 rounded-xl bg-gray-50 hover:bg-violet-50 flex items-center justify-center transition-colors"
+                      title="Editar plano"
+                    >
+                      <Pencil size={13} className="text-gray-400 hover:text-violet-600" />
+                    </button>
+                  </div>
+                </div>
+                <div className="text-3xl font-black" style={{ color: '#7c3aed' }}>
+                  R$ {Number(plan.price || 0).toFixed(2)}
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {PLAN_FEATURES.map(f => (
+                    <div key={f.key} className={`rounded-xl px-3 py-2.5 text-xs font-bold ${feats[f.key] ? 'bg-violet-50 text-violet-700' : 'bg-gray-50 text-gray-400'}`}>
+                      {f.label}
+                    </div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  {[['Usuários', lims.max_users], ['Clientes', lims.max_clients], ['Produtos', lims.max_products], ['Serviços', lims.max_services]].map(([l, v]) => (
+                    <div key={l} className="rounded-xl bg-gray-50 p-3 text-gray-600">{l}: <strong>{v ?? 0}</strong></div>
+                  ))}
+                </div>
               </div>
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                {[['Usuários', lims.max_users], ['Clientes', lims.max_clients], ['Produtos', lims.max_products], ['Serviços', lims.max_services]].map(([l, v]) => (
-                  <div key={l} className="rounded-xl bg-gray-50 p-3 text-gray-600">{l}: <strong>{v ?? 0}</strong></div>
-                ))}
-              </div>
-            </div>
-          )
-        })}
-        {!loading && plans.length === 0 && (
-          <div className="rounded-2xl bg-white p-6 border border-gray-100 text-sm text-gray-400">Nenhum plano cadastrado.</div>
-        )}
-      </section>
+            )
+          })}
+          {!loading && plans.length === 0 && (
+            <div className="rounded-2xl bg-white p-6 border border-gray-100 text-sm text-gray-400">Nenhum plano cadastrado.</div>
+          )}
+        </section>
+      )}
 
       {/* plan modal */}
       {showPlanModal && (

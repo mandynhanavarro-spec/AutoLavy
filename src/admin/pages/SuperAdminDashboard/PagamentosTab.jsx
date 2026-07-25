@@ -48,7 +48,7 @@ function StatusBadge({ value }) {
 /* ── component ─────────────────────────────────────────────── */
 
 const PagamentosTab = forwardRef(function PagamentosTab(
-  { payments, organizations, subscriptions, loading, loadAdminData, showSuccess, showError, startAction, finishAction, isActionRunning },
+  { payments, organizations, subscriptions, loading, loadAdminData, showSuccess, showError, startAction, finishAction, isActionRunning, isActive },
   ref
 ) {
   const [showPaymentModal, setShowPaymentModal] = useState(false)
@@ -92,49 +92,57 @@ const PagamentosTab = forwardRef(function PagamentosTab(
     openPaymentModal: () => setShowPaymentModal(true),
   }))
 
+  /* Componente fica sempre montado (ver SuperAdminDashboard.jsx) para que
+     pagamentosTabRef funcione mesmo a partir de outra aba (ex.: Dashboard).
+     Só pulamos a renderização quando não há nem aba ativa nem modal aberto —
+     o modal precisa aparecer mesmo com isActive=false. */
+  if (!isActive && !showPaymentModal) return null
+
   /* ── render ──────────────────────────────────────────────── */
 
   return (
     <>
-      <section className="space-y-4">
-        <div className="flex justify-end">
-          <div className="relative w-full max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={15} />
-            <input type="text" placeholder="Buscar pagamento" className="w-full pl-9 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-violet-400" value={paymentSearch} onChange={e => setPaymentSearch(e.target.value)} />
+      {isActive && (
+        <section className="space-y-4">
+          <div className="flex justify-end">
+            <div className="relative w-full max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={15} />
+              <input type="text" placeholder="Buscar pagamento" className="w-full pl-9 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-violet-400" value={paymentSearch} onChange={e => setPaymentSearch(e.target.value)} />
+            </div>
           </div>
-        </div>
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[860px]">
-              <thead style={{ background: '#f8f7ff' }}>
-                <tr className="text-left text-[10px] uppercase tracking-widest text-gray-400 font-black">
-                  {['Data','Cliente','Valor','Método','Status','Vencimento'].map(h => (
-                    <th key={h} className="px-5 py-4">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filteredPayments.map(p => {
-                  const org = organizations.find(o => o.id === p.organization_id)
-                  return (
-                    <tr key={p.id} className="border-t border-gray-50 text-sm hover:bg-gray-50/50">
-                      <td className="px-5 py-3.5 text-gray-400 text-xs">{new Date(p.created_at).toLocaleDateString('pt-BR')}</td>
-                      <td className="px-5 py-3.5 font-medium text-gray-900">{org?.name || 'Cliente removido'}</td>
-                      <td className="px-5 py-3.5 font-bold text-gray-900">R$ {Number(p.amount || 0).toFixed(2)}</td>
-                      <td className="px-5 py-3.5 capitalize text-gray-500">{p.method}</td>
-                      <td className="px-5 py-3.5"><StatusBadge value={p.status} /></td>
-                      <td className="px-5 py-3.5 text-gray-400 text-xs">{p.due_date ? new Date(p.due_date).toLocaleDateString('pt-BR') : '-'}</td>
-                    </tr>
-                  )
-                })}
-                {!loading && filteredPayments.length === 0 && (
-                  <tr><td colSpan="6" className="px-5 py-10 text-center text-sm text-gray-400">Nenhum pagamento registrado.</td></tr>
-                )}
-              </tbody>
-            </table>
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[860px]">
+                <thead style={{ background: '#f8f7ff' }}>
+                  <tr className="text-left text-[10px] uppercase tracking-widest text-gray-400 font-black">
+                    {['Data','Cliente','Valor','Método','Status','Vencimento'].map(h => (
+                      <th key={h} className="px-5 py-4">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredPayments.map(p => {
+                    const org = organizations.find(o => o.id === p.organization_id)
+                    return (
+                      <tr key={p.id} className="border-t border-gray-50 text-sm hover:bg-gray-50/50">
+                        <td className="px-5 py-3.5 text-gray-400 text-xs">{new Date(p.created_at).toLocaleDateString('pt-BR')}</td>
+                        <td className="px-5 py-3.5 font-medium text-gray-900">{org?.name || 'Cliente removido'}</td>
+                        <td className="px-5 py-3.5 font-bold text-gray-900">R$ {Number(p.amount || 0).toFixed(2)}</td>
+                        <td className="px-5 py-3.5 capitalize text-gray-500">{p.method}</td>
+                        <td className="px-5 py-3.5"><StatusBadge value={p.status} /></td>
+                        <td className="px-5 py-3.5 text-gray-400 text-xs">{p.due_date ? new Date(p.due_date).toLocaleDateString('pt-BR') : '-'}</td>
+                      </tr>
+                    )
+                  })}
+                  {!loading && filteredPayments.length === 0 && (
+                    <tr><td colSpan="6" className="px-5 py-10 text-center text-sm text-gray-400">Nenhum pagamento registrado.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* payment modal */}
       {showPaymentModal && (
