@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import {
   BadgeDollarSign, Building2, CheckCircle2, Clock, Copy, CreditCard,
-  ExternalLink, FileText, KeyRound, LayoutDashboard, Lock,
-  LogOut, Monitor, Plus, Search, Settings2, Shield, Trash2,
+  ExternalLink, LayoutDashboard, Lock,
+  LogOut, Monitor, Plus, Search, Settings2, Trash2,
   WalletCards, X, Users, Pencil, Eye, EyeOff, LogIn,
   RefreshCw, PauseCircle, PlayCircle,
 } from 'lucide-react'
@@ -13,6 +13,7 @@ import ClientOnboarding from './ClientOnboarding'
 import FuncoesTab from './SuperAdminDashboard/FuncoesTab'
 import PagamentosTab from './SuperAdminDashboard/PagamentosTab'
 import PlanosTab from './SuperAdminDashboard/PlanosTab'
+import ConfiguracoesTab from './SuperAdminDashboard/ConfiguracoesTab'
 
 /* ── constants ─────────────────────────────────────────────── */
 
@@ -94,8 +95,6 @@ const initialClientForm = {
   login_email: '', initial_password: '', product_id: 'loja', plan_id: '',
   segments: [], categories: [],
 }
-
-const initialAdminForm = { name: '', email: '', profile: 'administrador' }
 
 function formatPhone(value) {
   const d = (value || '').replace(/\D/g, '').slice(0, 11)
@@ -209,9 +208,7 @@ export default function SuperAdminDashboard() {
   const [orgSegmentsMap, setOrgSegmentsMap] = useState({})
   const [orgsWithRegisters, setOrgsWithRegisters] = useState(new Set())
   const [showClientModal, setShowClientModal] = useState(false)
-  const [showAdminModal, setShowAdminModal] = useState(false)
   const [clientForm, setClientForm] = useState(initialClientForm)
-  const [adminForm, setAdminForm] = useState(initialAdminForm)
   const [generatedLink, setGeneratedLink] = useState('')
   const [clientFilter, setClientFilter] = useState('todos')
   const [storeSearch, setStoreSearch] = useState('')
@@ -704,18 +701,6 @@ export default function SuperAdminDashboard() {
     finally { finishAction() }
   }
 
-  const handleSaveAdmin = async e => {
-    e.preventDefault(); startAction('submit-admin')
-    try {
-      const { error } = await supabase.from('saas_administrators').insert({
-        ...adminForm, name: adminForm.name.trim(), email: adminForm.email.trim().toLowerCase(),
-      })
-      if (error) throw new Error(getErrorMessage(error, 'Erro ao salvar administrador.'))
-      await loadAdminData(); setAdminForm(initialAdminForm); setShowAdminModal(false); showSuccess('Administrador salvo.')
-    } catch (err) { showError(err, 'Erro ao salvar administrador.') }
-    finally { finishAction() }
-  }
-
   /* ── org register management (inside client edit modal) ─── */
 
   async function loadOrgRegisters(orgId) {
@@ -754,18 +739,6 @@ export default function SuperAdminDashboard() {
     if (!window.confirm(`Excluir o caixa "${regName}"? Esta ação é irreversível.`)) return
     await supabase.from('cash_registers').delete().eq('id', regId)
     await loadOrgRegisters(editingOrganizationId)
-  }
-
-  const handleGatewayChange = async (provider, secretKey) => {
-    const key = `gateway-${provider}`; startAction(key)
-    try {
-      const { error } = await supabase.from('saas_gateway_configs').upsert(
-        { provider, secret_key: secretKey, is_enabled: Boolean(secretKey) }, { onConflict: 'provider' }
-      )
-      if (error) throw new Error(getErrorMessage(error, `Erro ao salvar ${provider}.`))
-      await loadAdminData(); showSuccess(`Gateway ${provider} salvo.`)
-    } catch (err) { showError(err, `Erro ao salvar ${provider}.`) }
-    finally { finishAction() }
   }
 
   /* ── shared input class ──────────────────────────────────── */
@@ -1317,108 +1290,20 @@ export default function SuperAdminDashboard() {
 
           {/* ── CONFIGURAÇÕES ── */}
           {activeTab === 'configuracoes' && (
-            <section className="grid gap-4 xl:grid-cols-2">
-              <div className="space-y-4">
-                {/* admins */}
-                <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-black text-gray-900 text-sm">Administradores</h3>
-                    <button onClick={() => setShowAdminModal(true)} className="rounded-xl bg-[#7c3aed] text-white px-3 py-1.5 text-xs font-bold flex items-center gap-1.5 hover:bg-[#6d28d9] transition-colors">
-                      <Plus size={13} />Novo
-                    </button>
-                  </div>
-                  <div className="space-y-2">
-                    {admins.map(a => (
-                      <div key={a.id} className="rounded-xl bg-gray-50 p-4 flex items-center gap-3">
-                        <Avatar name={a.name} />
-                        <div className="flex-1 min-w-0">
-                          <p className="font-bold text-gray-900 text-sm truncate">{a.name}</p>
-                          <p className="text-xs text-gray-400 truncate">{a.email}</p>
-                        </div>
-                        <StatusBadge value={a.is_active ? 'ativo' : 'inativo'} />
-                      </div>
-                    ))}
-                    {!loading && admins.length === 0 && (
-                      <div className="rounded-xl bg-gray-50 p-4 text-sm text-gray-400">Nenhum administrador.</div>
-                    )}
-                  </div>
-                </div>
-
-                {/* security */}
-                <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
-                  <h3 className="font-black text-gray-900 text-sm mb-4">Segurança</h3>
-                  <div className="space-y-2">
-                    {[
-                      { Icon: Shield, label: 'Tempo de sessão', value: '8 horas', sub: 'Controle centralizado' },
-                      { Icon: KeyRound, label: 'Política de senha', value: 'Ativa', sub: 'Mín. 8 caracteres + recuperação' },
-                      { Icon: Lock, label: 'Autenticação 2FA', value: 'Preparado', sub: 'Ativação futura' },
-                    ].map(({ Icon, label, value, sub }) => (
-                      <div key={label} className="rounded-xl bg-gray-50 p-4 flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-white border border-gray-100 flex items-center justify-center">
-                            <Icon size={15} className="text-gray-400" />
-                          </div>
-                          <div>
-                            <p className="font-bold text-gray-900 text-sm">{label}</p>
-                            <p className="text-xs text-gray-400">{sub}</p>
-                          </div>
-                        </div>
-                        <span className="text-xs font-bold text-gray-500 shrink-0">{value}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                {/* gateways */}
-                <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
-                  <div className="flex items-center gap-2 mb-4">
-                    <Settings2 size={16} className="text-gray-400" />
-                    <h3 className="font-black text-gray-900 text-sm">Gateways e Tokens</h3>
-                  </div>
-                  <div className="space-y-3">
-                    {PROVIDER_OPTIONS.map(provider => (
-                      <div key={provider} className="rounded-xl bg-gray-50 p-4">
-                        <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">
-                          {provider.replace('_', ' ')}
-                        </label>
-                        <div className="flex gap-2">
-                          <input type="text" className="flex-1 rounded-xl bg-white border border-gray-200 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-violet-400"
-                            value={gatewayDraft[provider] || ''} onChange={e => setGatewayDraft(prev => ({ ...prev, [provider]: e.target.value }))} placeholder="Token / API Key" />
-                          <button type="button" disabled={isActionRunning(`gateway-${provider}`)} onClick={() => handleGatewayChange(provider, gatewayDraft[provider] || '')}
-                            className="rounded-xl bg-[#1e1b4b] hover:bg-[#2d2878] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-60 transition-colors">
-                            {isActionRunning(`gateway-${provider}`) ? '...' : 'Salvar'}
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* logs */}
-                <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
-                  <div className="flex items-center gap-2 mb-4">
-                    <FileText size={16} className="text-gray-400" />
-                    <h3 className="font-black text-gray-900 text-sm">Logs do Sistema</h3>
-                  </div>
-                  <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
-                    {logs.map(log => (
-                      <div key={log.id} className="rounded-xl bg-gray-50 p-3.5">
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="font-bold text-gray-900 text-sm">{log.action}</p>
-                          <span className="text-[10px] text-gray-400 shrink-0">{new Date(log.created_at).toLocaleString('pt-BR')}</span>
-                        </div>
-                        <p className="mt-1 text-xs text-gray-500">{log.description || 'Sem descrição.'}</p>
-                      </div>
-                    ))}
-                    {!loading && logs.length === 0 && (
-                      <div className="rounded-xl bg-gray-50 p-4 text-sm text-gray-400">Nenhum log.</div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </section>
+            <ConfiguracoesTab
+              admins={admins}
+              logs={logs}
+              gatewayConfigs={gatewayConfigs}
+              gatewayDraft={gatewayDraft}
+              setGatewayDraft={setGatewayDraft}
+              loading={loading}
+              loadAdminData={loadAdminData}
+              showSuccess={showSuccess}
+              showError={showError}
+              startAction={startAction}
+              finishAction={finishAction}
+              isActionRunning={isActionRunning}
+            />
           )}
 
           {/* ── FUNÇÕES ── */}
@@ -1860,28 +1745,6 @@ export default function SuperAdminDashboard() {
         </div>
       )}
 
-      {/* admin modal */}
-      {showAdminModal && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-xl rounded-3xl p-6 space-y-5 shadow-2xl">
-            <div className="flex justify-between items-center">
-              <h3 className="text-lg font-black text-gray-900">Novo Administrador</h3>
-              <button onClick={() => setShowAdminModal(false)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
-            </div>
-            <form onSubmit={handleSaveAdmin} className="space-y-4">
-              <input required placeholder="Nome" className={inp} value={adminForm.name} onChange={e => setAdminForm({ ...adminForm, name: e.target.value })} />
-              <input required type="email" placeholder="E-mail" className={inp} value={adminForm.email} onChange={e => setAdminForm({ ...adminForm, email: e.target.value })} />
-              <select className={inp} value={adminForm.profile} onChange={e => setAdminForm({ ...adminForm, profile: e.target.value })}>
-                <option value="super_admin">Super Admin</option>
-                <option value="administrador">Administrador</option>
-              </select>
-              <button type="submit" disabled={isActionRunning('submit-admin')} className="w-full py-4 bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-bold rounded-2xl shadow-lg disabled:opacity-60 transition-colors">
-                {isActionRunning('submit-admin') ? 'Salvando...' : 'Salvar Administrador'}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
