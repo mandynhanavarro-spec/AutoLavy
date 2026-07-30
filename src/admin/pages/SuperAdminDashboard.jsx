@@ -400,13 +400,13 @@ export default function SuperAdminDashboard() {
             <p className="text-xs text-gray-400 mt-0.5">{SECTION_META[activeTab].subtitle}</p>
           </div>
           <div className="flex items-center gap-2">
-            {['dashboard', 'clientes'].includes(activeTab) && (
+            {activeTab === 'clientes' && (
               <button onClick={() => setShowNewClientTypeModal(true)} className="flex items-center gap-2 px-4 py-2.5 bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-sm font-bold rounded-xl shadow-lg shadow-violet-200 transition-colors">
                 <Plus size={15} />
                 Novo Cliente
               </button>
             )}
-            {['dashboard', 'planos'].includes(activeTab) && (
+            {activeTab === 'planos' && (
               <button onClick={() => planosTabRef.current?.openNewPlan()} className="flex items-center gap-2 px-4 py-2.5 bg-white text-gray-700 text-sm font-bold rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors">
                 <Plus size={15} />
                 Novo Plano
