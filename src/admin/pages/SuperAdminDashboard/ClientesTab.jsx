@@ -39,6 +39,7 @@ const STATUS_CLASSES = {
   cancelada: 'bg-slate-100 text-slate-500',
   bloqueado: 'bg-rose-100 text-rose-700',
   inativo:   'bg-slate-100 text-slate-500',
+  expirado:  'bg-amber-100 text-amber-700',
 }
 
 const AVATAR_COLORS = [
@@ -253,18 +254,31 @@ const ClientesTab = forwardRef(function ClientesTab(
   /* ── action handlers ─────────────────────────────────────── */
 
   const handleCancelInvite = async invite => {
-    if (!window.confirm(`Cancelar o convite de "${invite.store_name}"?`)) return
+    const isCancelling = !invite.cancelled_at
+    if (isCancelling) {
+      if (!window.confirm(`Cancelar o convite de "${invite.store_name}"? O link deixará de funcionar, mas o convite continua no histórico e pode ser reativado depois.`)) return
+    } else {
+      if (!window.confirm(`Reativar o convite de "${invite.store_name}"? Ele valerá por mais 7 dias.`)) return
+    }
     const key = `cancel-invite-${invite.id}`; startAction(key)
     try {
-      const { error } = await supabase.from('store_invites').delete().eq('id', invite.id)
-      if (error) throw new Error(getErrorMessage(error, 'Nao foi possivel cancelar.'))
-      await loadAdminData(); showSuccess('Convite cancelado.')
-    } catch (err) { showError(err, 'Nao foi possivel cancelar.') }
+      let payload
+      if (isCancelling) {
+        payload = { cancelled_at: new Date().toISOString() }
+      } else {
+        const exp = new Date(); exp.setDate(exp.getDate() + 7)
+        payload = { cancelled_at: null, expires_at: exp.toISOString() }
+      }
+      const { error } = await supabase.from('store_invites').update(payload).eq('id', invite.id)
+      if (error) throw new Error(getErrorMessage(error, 'Não foi possível atualizar o convite.'))
+      await loadAdminData()
+      showSuccess(isCancelling ? 'Convite cancelado.' : 'Convite reativado por mais 7 dias.')
+    } catch (err) { showError(err, isCancelling ? 'Não foi possível cancelar.' : 'Não foi possível reativar.') }
     finally { finishAction() }
   }
 
   const handleDeleteInvite = async inv => {
-    if (!window.confirm('Excluir este convite?')) return
+    if (!window.confirm('Excluir permanentemente este convite? Esta ação não pode ser desfeita e remove o histórico.')) return
     const key = `delete-invite-${inv.id}`; startAction(key)
     try {
       const { error } = await supabase.from('store_invites').delete().eq('id', inv.id)
@@ -274,16 +288,15 @@ const ClientesTab = forwardRef(function ClientesTab(
     finally { finishAction() }
   }
 
-  const handleResendInvite = async invite => {
-    const key = `resend-invite-${invite.id}`; startAction(key)
+  const handleRenewInvite = async invite => {
+    const key = `renew-invite-${invite.id}`; startAction(key)
     try {
       const exp = new Date(); exp.setDate(exp.getDate() + 7)
-      const { error } = await supabase.from('store_invites').update({ expires_at: exp.toISOString(), is_used: false }).eq('id', invite.id)
-      if (error) throw new Error(getErrorMessage(error, 'Nao foi possivel reenviar.'))
+      const { error } = await supabase.from('store_invites').update({ expires_at: exp.toISOString() }).eq('id', invite.id)
+      if (error) throw new Error(getErrorMessage(error, 'Não foi possível renovar.'))
       await loadAdminData()
-      try { await copyTextToClipboard(buildInviteLink(invite.token)); showSuccess('Convite reenviado e link copiado.') }
-      catch { showWarning('Convite reenviado, mas nao foi possivel copiar o link.') }
-    } catch (err) { showError(err, 'Nao foi possivel reenviar.') }
+      showSuccess('Convite renovado por mais 7 dias.')
+    } catch (err) { showError(err, 'Não foi possível renovar.') }
     finally { finishAction() }
   }
 
@@ -622,29 +635,33 @@ const ClientesTab = forwardRef(function ClientesTab(
               <table className="w-full min-w-[600px]">
                 <thead style={{ background: '#f8f7ff' }}>
                   <tr className="text-left text-[10px] uppercase tracking-widest text-gray-400 font-black">
-                    {['Empresa','Responsável','Plano','Expira em','Ações'].map(h => (
+                    {['Empresa','Responsável','Plano','Status','Expira em','Ações'].map(h => (
                       <th key={h} className="px-5 py-4">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {invites.map(inv => (
+                  {invites.map(inv => {
+                    const isExpired = !inv.cancelled_at && inv.expires_at && new Date(inv.expires_at) < new Date()
+                    const inviteStatus = inv.cancelled_at ? 'cancelado' : isExpired ? 'expirado' : 'ativo'
+                    return (
                     <tr key={inv.id} className="border-t border-gray-50 text-sm hover:bg-gray-50/50">
                       <td className="px-5 py-3.5 font-bold text-gray-900">{inv.store_name}</td>
                       <td className="px-5 py-3.5 text-gray-500">{inv.responsible_name || '-'}</td>
                       <td className="px-5 py-3.5 text-gray-500">{plans.find(p => p.slug === inv.plan_type)?.name || inv.plan_type}</td>
+                      <td className="px-5 py-3.5"><StatusBadge value={inviteStatus} /></td>
                       <td className="px-5 py-3.5 text-gray-400 text-xs">{inv.expires_at ? new Date(inv.expires_at).toLocaleDateString('pt-BR') : '-'}</td>
                       <td className="px-5 py-3.5">
                         <div className="flex gap-2">
                           <button type="button" onClick={() => openEditInviteModal(inv)} className="rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-xs font-bold text-gray-700">Editar</button>
-                          <button type="button" disabled={isActionRunning(`resend-invite-${inv.id}`)} onClick={() => handleResendInvite(inv)} className="rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-xs font-bold text-gray-700 disabled:opacity-60">
-                            {isActionRunning(`resend-invite-${inv.id}`) ? '...' : 'Reenviar'}
+                          <button type="button" disabled={isActionRunning(`renew-invite-${inv.id}`)} onClick={() => handleRenewInvite(inv)} className="rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-xs font-bold text-gray-700 disabled:opacity-60">
+                            {isActionRunning(`renew-invite-${inv.id}`) ? '...' : 'Renovar'}
                           </button>
                           <button type="button" disabled={isActionRunning(`copy-link-${inv.token}`)} onClick={() => copyInviteLink(inv.token)} className="rounded-xl bg-[#1e1b4b] px-3 py-1.5 text-xs font-bold text-white disabled:opacity-60 hover:bg-[#2d2878] transition-colors">
                             {isActionRunning(`copy-link-${inv.token}`) ? '...' : 'Copiar link'}
                           </button>
                           <button type="button" disabled={isActionRunning(`cancel-invite-${inv.id}`)} onClick={() => handleCancelInvite(inv)} className="rounded-xl bg-rose-500 hover:bg-rose-600 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-60 transition-colors">
-                            {isActionRunning(`cancel-invite-${inv.id}`) ? '...' : 'Cancelar'}
+                            {isActionRunning(`cancel-invite-${inv.id}`) ? '...' : (inv.cancelled_at ? 'Ativar' : 'Cancelar')}
                           </button>
                           <button type="button" disabled={isActionRunning(`delete-invite-${inv.id}`)} onClick={() => handleDeleteInvite(inv)} className="rounded-xl bg-white border border-rose-200 p-1.5 hover:bg-rose-50 disabled:opacity-60 transition-colors" title="Excluir convite">
                             <Trash2 size={13} className="text-rose-500" />
@@ -652,9 +669,10 @@ const ClientesTab = forwardRef(function ClientesTab(
                         </div>
                       </td>
                     </tr>
-                  ))}
+                    )
+                  })}
                   {invites.length === 0 && (
-                    <tr><td colSpan="5" className="px-5 py-10 text-center text-sm text-gray-400">Nenhum convite pendente.</td></tr>
+                    <tr><td colSpan="6" className="px-5 py-10 text-center text-sm text-gray-400">Nenhum convite pendente.</td></tr>
                   )}
                 </tbody>
               </table>
