@@ -87,6 +87,8 @@ export default function SuperAdminDashboard() {
 
   useEffect(() => { loadAdminData() }, [])
 
+  useEffect(() => { setFeedback(null) }, [activeTab])
+
   /* ── data loading ────────────────────────────────────────── */
 
   async function loadAdminData() {
