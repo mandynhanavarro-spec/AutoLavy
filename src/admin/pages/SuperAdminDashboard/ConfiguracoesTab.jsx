@@ -61,6 +61,7 @@ export default function ConfiguracoesTab({
   const [showAdminModal, setShowAdminModal] = useState(false)
   const [adminForm, setAdminForm]           = useState(initialAdminForm)
 
+  const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword]         = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [pwSaving, setPwSaving]     = useState(false)
@@ -102,6 +103,14 @@ export default function ConfiguracoesTab({
     e.preventDefault()
     setPwError(''); setPwSuccess(false)
 
+    const { data: { user: currentUser } } = await supabase.auth.getUser()
+    if (!currentUser?.email) { setPwError('Não foi possível identificar o usuário.'); return }
+
+    const { error: authErr } = await supabase.auth.signInWithPassword({
+      email: currentUser.email, password: currentPassword,
+    })
+    if (authErr) { setPwError('Senha atual incorreta.'); return }
+
     if (newPassword.length < 6) { setPwError('A senha deve ter pelo menos 6 caracteres.'); return }
     if (newPassword !== confirmPassword) { setPwError('As senhas não coincidem.'); return }
 
@@ -119,7 +128,7 @@ export default function ConfiguracoesTab({
 
     if (error) { setPwError(getErrorMessage(error, 'Não foi possível trocar a senha.')); return }
 
-    setNewPassword(''); setConfirmPassword(''); setPwSuccess(true)
+    setCurrentPassword(''); setNewPassword(''); setConfirmPassword(''); setPwSuccess(true)
     showSuccess('Senha alterada com sucesso.')
     setTimeout(() => setPwSuccess(false), 3000)
   }
@@ -184,6 +193,7 @@ export default function ConfiguracoesTab({
           <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
             <h3 className="font-black text-gray-900 text-sm mb-4">Trocar minha senha</h3>
             <form onSubmit={handleChangeMyPassword} className="space-y-3">
+              <input type="password" placeholder="Senha atual" className={inp} value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} />
               <input type="password" placeholder="Nova senha" className={inp} value={newPassword} onChange={e => setNewPassword(e.target.value)} />
               <input type="password" placeholder="Confirmar nova senha" className={inp} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} />
               {pwError && (
@@ -191,7 +201,7 @@ export default function ConfiguracoesTab({
               )}
               <button
                 type="submit"
-                disabled={pwChecking || pwSaving || !newPassword}
+                disabled={pwChecking || pwSaving || !currentPassword || !newPassword}
                 className="w-full rounded-xl px-4 py-2.5 text-sm font-bold text-white disabled:opacity-60 transition-colors"
                 style={{ backgroundColor: pwSuccess ? '#10b981' : '#1e1b4b' }}
               >

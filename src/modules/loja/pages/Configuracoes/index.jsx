@@ -323,7 +323,7 @@ export default function Configuracoes() {
   const [storeError, setStoreError]   = useState('')
 
   /* password form */
-  const [pwForm, setPwForm]   = useState({ newPass: '', confirmPass: '' })
+  const [pwForm, setPwForm]   = useState({ currentPass: '', newPass: '', confirmPass: '' })
   const [showPw, setShowPw]   = useState(false)
   const [savingPw, setSavingPw] = useState(false)
   const [checkingPw, setCheckingPw] = useState(false)
@@ -357,6 +357,15 @@ export default function Configuracoes() {
   /* ── password change ─────────────────────────────────── */
   async function changePassword() {
     setPwError('')
+
+    const { data: { user: currentUser } } = await supabase.auth.getUser()
+    if (!currentUser?.email) { setPwError('Não foi possível identificar o usuário.'); return }
+
+    const { error: authErr } = await supabase.auth.signInWithPassword({
+      email: currentUser.email, password: pwForm.currentPass,
+    })
+    if (authErr) { setPwError('Senha atual incorreta.'); return }
+
     if (pwForm.newPass.length < 6) { setPwError('A senha deve ter pelo menos 6 caracteres.'); return }
     if (pwForm.newPass !== pwForm.confirmPass) { setPwError('As senhas não coincidem.'); return }
 
@@ -374,7 +383,7 @@ export default function Configuracoes() {
     setSavingPw(false)
     if (error) { setPwError(error.message); return }
     if (!data?.user) { setPwError('Senha não atualizada. Verifique se "Secure password change" está desativado no painel Supabase (Authentication → Providers → Email).'); return }
-    setPwForm({ newPass: '', confirmPass: '' })
+    setPwForm({ currentPass: '', newPass: '', confirmPass: '' })
     setPwSaved(true)
     setTimeout(() => setPwSaved(false), 3000)
   }
@@ -616,6 +625,16 @@ export default function Configuracoes() {
             Alterar senha
           </p>
 
+          <Field label="Senha atual">
+            <input
+              type="password"
+              value={pwForm.currentPass}
+              onChange={e => setPwForm(f => ({ ...f, currentPass: e.target.value }))}
+              placeholder="Digite sua senha atual"
+              className={inputCls}
+            />
+          </Field>
+
           <Field label="Nova senha">
             <div className="relative">
               <input
@@ -653,7 +672,7 @@ export default function Configuracoes() {
 
           <button
             onClick={changePassword}
-            disabled={savingPw || checkingPw || !pwForm.newPass}
+            disabled={savingPw || checkingPw || !pwForm.currentPass || !pwForm.newPass}
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-white text-sm font-bold shadow-sm disabled:opacity-60 transition-colors"
             style={{ backgroundColor: pwSaved ? '#10b981' : color }}
           >
