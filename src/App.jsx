@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { BrowserRouter as Router, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { TenantProvider } from './core/contexts/TenantContext'
 import Register from './core/pages/Register'
+import DefinirSenha from './core/pages/DefinirSenha'
 import SuspensaoPage from './core/pages/Suspenso'
 import { supabase } from './shared/lib/supabase'
 import { useServiceWorker } from './hooks/useServiceWorker'
@@ -398,6 +399,7 @@ export default function App() {
             <Routes>
               <Route path="/login"     element={<Navigate to="/superadmin" replace />} />
               <Route path="/registrar" element={<Register />} />
+              <Route path="/definir-senha" element={<DefinirSenha />} />
               <Route path="/upgrade"   element={<Navigate to="/superadmin" replace />} />
               <Route path="/superadmin" element={<SuperAdminDashboard />} />
               <Route path="*"          element={<Navigate to={sessionStorage.getItem('last_route') || '/superadmin'} replace />} />
@@ -489,6 +491,7 @@ export default function App() {
         <Routes>
           <Route path="/login"      element={!session ? <LoginPage /> : <Navigate to={sessionStorage.getItem('last_route') || '/'} replace />} />
           <Route path="/registrar"  element={<Register />} />
+          <Route path="/definir-senha" element={<DefinirSenha />} />
           <Route path="/upgrade"    element={<UpgradePage />} />
           <Route path="/superadmin" element={session ? <Navigate to="/" replace /> : <Navigate to="/login" replace />} />
 

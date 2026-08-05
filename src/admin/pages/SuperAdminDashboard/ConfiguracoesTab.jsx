@@ -63,12 +63,18 @@ export default function ConfiguracoesTab({
   const handleSaveAdmin = async e => {
     e.preventDefault(); startAction('submit-admin')
     try {
-      const { error } = await supabase.from('saas_administrators').insert({
-        ...adminForm, name: adminForm.name.trim(), email: adminForm.email.trim().toLowerCase(),
+      const { data, error } = await supabase.functions.invoke('create-administrator', {
+        body: {
+          name: adminForm.name.trim(),
+          email: adminForm.email.trim().toLowerCase(),
+          profile: adminForm.profile,
+          redirectTo: `${window.location.origin}/definir-senha`,
+        },
       })
-      if (error) throw new Error(getErrorMessage(error, 'Erro ao salvar administrador.'))
-      await loadAdminData(); setAdminForm(initialAdminForm); setShowAdminModal(false); showSuccess('Administrador salvo.')
-    } catch (err) { showError(err, 'Erro ao salvar administrador.') }
+      if (error || data?.error) throw new Error(data?.error || getErrorMessage(error, 'Erro ao criar administrador.'))
+      await loadAdminData(); setAdminForm(initialAdminForm); setShowAdminModal(false)
+      showSuccess('Administrador criado. Um e-mail de convite foi enviado para definir a senha.')
+    } catch (err) { showError(err, 'Erro ao criar administrador.') }
     finally { finishAction() }
   }
 
