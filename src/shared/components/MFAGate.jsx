@@ -14,6 +14,7 @@ export default function MFAGate({ mode = 'required', children }) {
   const [code, setCode] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [userEmail, setUserEmail] = useState('')
   const initRef = useRef(false)
 
   useEffect(() => {
@@ -23,6 +24,9 @@ export default function MFAGate({ mode = 'required', children }) {
   }, [])
 
   async function init() {
+    const { data: userData } = await supabase.auth.getUser()
+    setUserEmail(userData?.user?.email || '')
+
     const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
     if (aal?.currentLevel === 'aal2') { setPhase('ready'); return }
 
@@ -32,16 +36,32 @@ export default function MFAGate({ mode = 'required', children }) {
     if (verifiedFactor) {
       setFactorId(verifiedFactor.id)
       const { data: challengeData, error: challengeErr } = await supabase.auth.mfa.challenge({ factorId: verifiedFactor.id })
-      if (challengeErr) { setError('Não foi possível iniciar a verificação. Recarregue a página.') }
-      else { setChallengeId(challengeData.id) }
+      if (challengeErr) {
+        console.error('[MFAGate] challenge error:', challengeErr.message)
+        setError(challengeErr.message || 'Não foi possível iniciar a verificação. Recarregue a página.')
+      } else {
+        setChallengeId(challengeData.id)
+      }
       setPhase('challenge')
       return
     }
 
     if (mode === 'optional') { setPhase('ready'); return }
 
+    // Limpa fatores TOTP pendentes de uma tentativa de cadastro anterior não concluída —
+    // o Supabase recusa um novo enroll() enquanto existir um fator 'unverified'.
+    const unverifiedFactors = factorsData?.totp?.filter(f => f.status === 'unverified') || []
+    for (const f of unverifiedFactors) {
+      await supabase.auth.mfa.unenroll({ factorId: f.id })
+    }
+
     const { data: enrollData, error: enrollErr } = await supabase.auth.mfa.enroll({ factorType: 'totp' })
-    if (enrollErr) { setError('Não foi possível iniciar o cadastro do 2FA. Recarregue a página.'); setPhase('enroll'); return }
+    if (enrollErr) {
+      console.error('[MFAGate] enroll error:', enrollErr.message)
+      setError(enrollErr.message || 'Não foi possível iniciar o cadastro do 2FA. Recarregue a página.')
+      setPhase('enroll')
+      return
+    }
     setFactorId(enrollData.id)
     setQrCode(enrollData.totp.qr_code)
     setSecret(enrollData.totp.secret)
@@ -89,7 +109,10 @@ export default function MFAGate({ mode = 'required', children }) {
           </div>
           <div className="text-center">
             <h1 className="text-xl font-black text-slate-900">Verificação em duas etapas</h1>
-            <p className="text-sm text-slate-500 mt-1">Digite o código de 6 dígitos do seu aplicativo autenticador.</p>
+            {userEmail && (
+              <p className="text-xs text-slate-400 mt-1">Conta: <strong className="text-slate-600">{userEmail}</strong></p>
+            )}
+            <p className="text-sm text-slate-500 mt-2">Digite o código de 6 dígitos do seu aplicativo autenticador.</p>
           </div>
 
           <form onSubmit={handleVerifyChallenge} className="space-y-4">
@@ -130,7 +153,10 @@ export default function MFAGate({ mode = 'required', children }) {
       <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-sm border border-slate-100 space-y-5">
         <div className="text-center">
           <h1 className="text-xl font-black text-slate-900">Ative a verificação em duas etapas</h1>
-          <p className="text-sm text-slate-500 mt-1">
+          {userEmail && (
+            <p className="text-xs text-slate-400 mt-1">Configurando 2FA para: <strong className="text-slate-600">{userEmail}</strong></p>
+          )}
+          <p className="text-sm text-slate-500 mt-2">
             Obrigatório para contas de SuperAdmin. Escaneie o QR code com o Google Authenticator, Authy ou similar.
           </p>
         </div>
