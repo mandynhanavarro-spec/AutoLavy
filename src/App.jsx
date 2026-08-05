@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Navigate, Route, Routes, useLocation } from 'r
 import { TenantProvider } from './core/contexts/TenantContext'
 import Register from './core/pages/Register'
 import DefinirSenha from './core/pages/DefinirSenha'
+import MFAGate from './shared/components/MFAGate'
 import SuspensaoPage from './core/pages/Suspenso'
 import { supabase } from './shared/lib/supabase'
 import { useServiceWorker } from './hooks/useServiceWorker'
@@ -477,19 +478,21 @@ export default function App() {
             </button>
           </div>
         )}
-        <Router>
-          <RouteTracker />
-          <S>
-            <Routes>
-              <Route path="/login"     element={<Navigate to="/superadmin" replace />} />
-              <Route path="/registrar" element={<Register />} />
-              <Route path="/definir-senha" element={<DefinirSenha />} />
-              <Route path="/upgrade"   element={<Navigate to="/superadmin" replace />} />
-              <Route path="/superadmin" element={<SuperAdminDashboard />} />
-              <Route path="*"          element={<Navigate to={sessionStorage.getItem('last_route') || '/superadmin'} replace />} />
-            </Routes>
-          </S>
-        </Router>
+        <MFAGate mode="required">
+          <Router>
+            <RouteTracker />
+            <S>
+              <Routes>
+                <Route path="/login"     element={<Navigate to="/superadmin" replace />} />
+                <Route path="/registrar" element={<Register />} />
+                <Route path="/definir-senha" element={<DefinirSenha />} />
+                <Route path="/upgrade"   element={<Navigate to="/superadmin" replace />} />
+                <Route path="/superadmin" element={<SuperAdminDashboard />} />
+                <Route path="*"          element={<Navigate to={sessionStorage.getItem('last_route') || '/superadmin'} replace />} />
+              </Routes>
+            </S>
+          </Router>
+        </MFAGate>
       </TenantProvider>
     )
   }
