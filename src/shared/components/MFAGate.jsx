@@ -55,7 +55,10 @@ export default function MFAGate({ mode = 'required', children }) {
       await supabase.auth.mfa.unenroll({ factorId: f.id })
     }
 
-    const { data: enrollData, error: enrollErr } = await supabase.auth.mfa.enroll({ factorType: 'totp' })
+    const { data: enrollData, error: enrollErr } = await supabase.auth.mfa.enroll({
+      factorType: 'totp',
+      issuer: 'AutoLavy',
+    })
     if (enrollErr) {
       console.error('[MFAGate] enroll error:', enrollErr.message)
       setError(enrollErr.message || 'Não foi possível iniciar o cadastro do 2FA. Recarregue a página.')
