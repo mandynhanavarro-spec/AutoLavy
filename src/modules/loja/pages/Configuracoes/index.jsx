@@ -4,6 +4,7 @@ import {
   Lock, LogOut, Save, Eye, EyeOff, Sliders, Plus, Trash2, X, Monitor, Check, Grid3x3,
 } from 'lucide-react'
 import { supabase } from '../../../../shared/lib/supabase'
+import { isPasswordPwned } from '../../../../shared/lib/checkPwnedPassword'
 import { useTenantContext } from '../../../../core/contexts/TenantContext'
 import { PERM_LABELS, ALL_PERM_KEYS, DEFAULT_PERMISSIONS } from '../../../../core/hooks/usePermissions'
 
@@ -325,6 +326,7 @@ export default function Configuracoes() {
   const [pwForm, setPwForm]   = useState({ newPass: '', confirmPass: '' })
   const [showPw, setShowPw]   = useState(false)
   const [savingPw, setSavingPw] = useState(false)
+  const [checkingPw, setCheckingPw] = useState(false)
   const [pwError, setPwError]   = useState('')
   const [pwSaved, setPwSaved]   = useState(false)
 
@@ -357,6 +359,15 @@ export default function Configuracoes() {
     setPwError('')
     if (pwForm.newPass.length < 6) { setPwError('A senha deve ter pelo menos 6 caracteres.'); return }
     if (pwForm.newPass !== pwForm.confirmPass) { setPwError('As senhas não coincidem.'); return }
+
+    setCheckingPw(true)
+    const pwnedCount = await isPasswordPwned(pwForm.newPass)
+    setCheckingPw(false)
+    if (pwnedCount > 0) {
+      setPwError(`Essa senha já apareceu em ${pwnedCount.toLocaleString('pt-BR')} vazamentos conhecidos. Escolha outra senha.`)
+      return
+    }
+
     setSavingPw(true)
     const { data, error } = await supabase.auth.updateUser({ password: pwForm.newPass })
     console.log('[changePassword]', { data, error })
@@ -642,12 +653,12 @@ export default function Configuracoes() {
 
           <button
             onClick={changePassword}
-            disabled={savingPw || !pwForm.newPass}
+            disabled={savingPw || checkingPw || !pwForm.newPass}
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-white text-sm font-bold shadow-sm disabled:opacity-60 transition-colors"
             style={{ backgroundColor: pwSaved ? '#10b981' : color }}
           >
             <Lock size={14} />
-            {pwSaved ? 'Senha alterada!' : savingPw ? 'Salvando...' : 'Alterar senha'}
+            {pwSaved ? 'Senha alterada!' : checkingPw ? 'Verificando...' : savingPw ? 'Salvando...' : 'Alterar senha'}
           </button>
         </div>
       </Section>

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Building2, Eye, EyeOff, Lock, MapPin, Palette, Phone } from 'lucide-react'
 import { supabase } from '../../../shared/lib/supabase'
+import { isPasswordPwned } from '../../../shared/lib/checkPwnedPassword'
 
 const inputCls =
   'w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500'
@@ -27,6 +28,7 @@ export default function Register() {
   const [inviteError, setInviteError] = useState('')
   const [submitError, setSubmitError] = useState('')
   const [showPw, setShowPw] = useState(false)
+  const [checkingPw, setCheckingPw] = useState(false)
 
   const [form, setForm] = useState({
     fullName: '',
@@ -81,6 +83,15 @@ export default function Register() {
     if (form.password.length < 6) { setSubmitError('A senha deve ter pelo menos 6 caracteres.'); return }
 
     setSubmitError('')
+
+    setCheckingPw(true)
+    const pwnedCount = await isPasswordPwned(form.password)
+    setCheckingPw(false)
+    if (pwnedCount > 0) {
+      setSubmitError(`Essa senha já apareceu em ${pwnedCount.toLocaleString('pt-BR')} vazamentos conhecidos. Escolha outra senha para continuar.`)
+      return
+    }
+
     setStep('submitting')
 
     try {
@@ -298,10 +309,10 @@ export default function Register() {
 
           <button
             type="submit"
-            disabled={step === 'submitting'}
+            disabled={step === 'submitting' || checkingPw}
             className="w-full rounded-2xl bg-slate-900 px-4 py-3.5 font-bold text-white text-sm disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {step === 'submitting' ? 'Criando sua loja...' : 'Criar loja e acessar painel'}
+            {checkingPw ? 'Verificando...' : step === 'submitting' ? 'Criando sua loja...' : 'Criar loja e acessar painel'}
           </button>
 
         </form>
