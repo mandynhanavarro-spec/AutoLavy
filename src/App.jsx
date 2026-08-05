@@ -115,10 +115,15 @@ function RouteTracker() {
 
 // ── Paginas pequenas (eager — necessarias no primeiro load) ────
 function LoginPage() {
+  const [mode, setMode] = useState('login') // 'login' | 'forgot'
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
+
+  const [forgotEmail, setForgotEmail] = useState('')
+  const [forgotSent, setForgotSent] = useState(false)
+  const [forgotSubmitting, setForgotSubmitting] = useState(false)
 
   const handleSubmit = async (event) => {
     event.preventDefault()
@@ -135,6 +140,77 @@ function LoginPage() {
     }
 
     setSubmitting(false)
+  }
+
+  const openForgotPassword = () => {
+    setForgotEmail(email)
+    setForgotSent(false)
+    setMode('forgot')
+  }
+
+  const handleForgotSubmit = async (event) => {
+    event.preventDefault()
+    setForgotSubmitting(true)
+
+    await supabase.auth.resetPasswordForEmail(forgotEmail, {
+      redirectTo: `${window.location.origin}/definir-senha`,
+    })
+
+    setForgotSubmitting(false)
+    setForgotSent(true)
+  }
+
+  if (mode === 'forgot') {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-sm border border-slate-100 space-y-5">
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '16px' }}>
+            <img
+              src="/Meu_Caixa_Logo.png"
+              alt="Meu Caixa"
+              style={{ width: '72px', height: '72px', borderRadius: '16px', objectFit: 'cover', marginBottom: '8px' }}
+            />
+          </div>
+          <div>
+            <h1 className="text-2xl font-black text-slate-900">Esqueci minha senha</h1>
+            <p className="text-sm text-slate-500 mt-1">Informe seu e-mail para receber um link de recuperação.</p>
+          </div>
+
+          {forgotSent ? (
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+              Se esse e-mail existir no sistema, você receberá um link para redefinir sua senha.
+            </div>
+          ) : (
+            <form onSubmit={handleForgotSubmit} className="space-y-4">
+              <input
+                type="email"
+                required
+                value={forgotEmail}
+                onChange={(event) => setForgotEmail(event.target.value)}
+                placeholder="E-mail"
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
+              />
+
+              <button
+                type="submit"
+                disabled={forgotSubmitting}
+                className="w-full rounded-2xl bg-slate-900 px-4 py-3 font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {forgotSubmitting ? 'Enviando...' : 'Enviar link de recuperação'}
+              </button>
+            </form>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setMode('login')}
+            className="w-full text-center text-sm text-slate-500 hover:text-slate-700 font-medium"
+          >
+            Voltar ao login
+          </button>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -182,6 +258,14 @@ function LoginPage() {
             className="w-full rounded-2xl bg-slate-900 px-4 py-3 font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
           >
             {submitting ? 'Entrando...' : 'Entrar'}
+          </button>
+
+          <button
+            type="button"
+            onClick={openForgotPassword}
+            className="w-full text-center text-sm text-slate-500 hover:text-slate-700 font-medium"
+          >
+            Esqueci minha senha
           </button>
         </form>
       </div>

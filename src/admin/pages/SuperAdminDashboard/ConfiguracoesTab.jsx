@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { FileText, KeyRound, Lock, Plus, Settings2, Shield, X } from 'lucide-react'
 import { supabase } from '../../../shared/lib/supabase'
+import { isPasswordPwned } from '../../../shared/lib/checkPwnedPassword'
 
 /* ── constants ─────────────────────────────────────────────── */
 
@@ -60,6 +61,13 @@ export default function ConfiguracoesTab({
   const [showAdminModal, setShowAdminModal] = useState(false)
   const [adminForm, setAdminForm]           = useState(initialAdminForm)
 
+  const [newPassword, setNewPassword]         = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [pwSaving, setPwSaving]     = useState(false)
+  const [pwChecking, setPwChecking] = useState(false)
+  const [pwError, setPwError]       = useState('')
+  const [pwSuccess, setPwSuccess]   = useState(false)
+
   const handleSaveAdmin = async e => {
     e.preventDefault(); startAction('submit-admin')
     try {
@@ -88,6 +96,32 @@ export default function ConfiguracoesTab({
       await loadAdminData(); showSuccess(`Gateway ${provider} salvo.`)
     } catch (err) { showError(err, `Erro ao salvar ${provider}.`) }
     finally { finishAction() }
+  }
+
+  const handleChangeMyPassword = async e => {
+    e.preventDefault()
+    setPwError(''); setPwSuccess(false)
+
+    if (newPassword.length < 6) { setPwError('A senha deve ter pelo menos 6 caracteres.'); return }
+    if (newPassword !== confirmPassword) { setPwError('As senhas não coincidem.'); return }
+
+    setPwChecking(true)
+    const pwnedCount = await isPasswordPwned(newPassword)
+    setPwChecking(false)
+    if (pwnedCount > 0) {
+      setPwError(`Essa senha já apareceu em ${pwnedCount.toLocaleString('pt-BR')} vazamentos conhecidos. Escolha outra.`)
+      return
+    }
+
+    setPwSaving(true)
+    const { error } = await supabase.auth.updateUser({ password: newPassword })
+    setPwSaving(false)
+
+    if (error) { setPwError(getErrorMessage(error, 'Não foi possível trocar a senha.')); return }
+
+    setNewPassword(''); setConfirmPassword(''); setPwSuccess(true)
+    showSuccess('Senha alterada com sucesso.')
+    setTimeout(() => setPwSuccess(false), 3000)
   }
 
   /* ── render ──────────────────────────────────────────────── */
@@ -144,6 +178,26 @@ export default function ConfiguracoesTab({
                 </div>
               ))}
             </div>
+          </div>
+
+          {/* ── Trocar minha senha ── */}
+          <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+            <h3 className="font-black text-gray-900 text-sm mb-4">Trocar minha senha</h3>
+            <form onSubmit={handleChangeMyPassword} className="space-y-3">
+              <input type="password" placeholder="Nova senha" className={inp} value={newPassword} onChange={e => setNewPassword(e.target.value)} />
+              <input type="password" placeholder="Confirmar nova senha" className={inp} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} />
+              {pwError && (
+                <p className="text-xs text-rose-600 font-medium bg-rose-50 border border-rose-200 rounded-xl px-3 py-2">{pwError}</p>
+              )}
+              <button
+                type="submit"
+                disabled={pwChecking || pwSaving || !newPassword}
+                className="w-full rounded-xl px-4 py-2.5 text-sm font-bold text-white disabled:opacity-60 transition-colors"
+                style={{ backgroundColor: pwSuccess ? '#10b981' : '#1e1b4b' }}
+              >
+                {pwSuccess ? 'Senha alterada!' : pwChecking ? 'Verificando...' : pwSaving ? 'Salvando...' : 'Alterar senha'}
+              </button>
+            </form>
           </div>
         </div>
 
