@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '../../../../shared/lib/supabase'
 import { useTenantContext } from '../../../../core/contexts/TenantContext'
+import { useModules } from '../../../../core/hooks/useModules'
 import { PERM_LABELS, ALL_PERM_KEYS, DEFAULT_PERMISSIONS } from '../../../../core/hooks/usePermissions'
 
 /* ── constants ───────────────────────────────────────────── */
@@ -93,9 +94,12 @@ function PermissionToggles({ perms, onChange, color }) {
 
 export default function Equipe() {
   const { tenant, profile } = useTenantContext()
+  const { hasModule } = useModules()
   const orgId   = tenant?.id
   const orgSlug = tenant?.slug || ''
-  const color   = '#0891b2'
+  // theme_color so e usado se o PLANO ATUAL tiver a feature white_label --
+  // checado na exibicao, nao no momento em que foi salvo.
+  const color   = (hasModule('white_label') && tenant?.theme_color) || '#0891b2'
   const isAdmin = profile?.role === 'admin' || profile?.role === 'superadmin'
 
   /* member list */

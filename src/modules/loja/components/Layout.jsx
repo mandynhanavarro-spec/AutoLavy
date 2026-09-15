@@ -18,6 +18,7 @@ import { supabase } from '../../../shared/lib/supabase'
 import { LogoMC, LogoAutoLavy } from '../../../shared/components/Logo'
 import ModuleGuard from '../../../shared/components/ModuleGuard'
 import { useTenantContext } from '../../../core/contexts/TenantContext'
+import { useModules } from '../../../core/hooks/useModules'
 
 const VERTICAL_DISPLAY = {
   loja:    { label: 'Meu Caixa',   Logo: LogoMC       },
@@ -55,8 +56,14 @@ export default function Layout({ profile }) {
   const [org, setOrg] = useState(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const { tenant } = useTenantContext()
+  const { hasModule } = useModules()
   const { label: verticalLabel, Logo: FooterLogo } =
     VERTICAL_DISPLAY[tenant?.product_id] ?? VERTICAL_DISPLAY.loja
+  // logo_url e theme_color so sao usados se o PLANO ATUAL tiver a feature
+  // white_label -- checado na exibicao, nao no momento em que foi salvo,
+  // pra sumir automaticamente num downgrade e voltar sozinho num upgrade.
+  const logoSrc = (hasModule('white_label') && org?.logo_url) || '/Meu_Caixa_Logo.png'
+  const accentColor = (hasModule('white_label') && org?.theme_color) || '#0891b2'
 
   useEffect(() => {
     if (profile?.org_id) {
@@ -84,7 +91,7 @@ export default function Layout({ profile }) {
             ? 'text-white shadow-sm'
             : 'text-white/70 hover:bg-white/10 hover:text-white'
         }`}
-        style={active ? { backgroundColor: '#0891b2' } : {}}
+        style={active ? { backgroundColor: accentColor } : {}}
       >
         <Icon size={17} />
         {label}
@@ -101,7 +108,7 @@ export default function Layout({ profile }) {
         className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors"
         style={{
           color: active ? 'white' : 'rgba(255,255,255,0.7)',
-          backgroundColor: active ? '#0891b2' : undefined,
+          backgroundColor: active ? accentColor : undefined,
         }}
       >
         <Icon size={17} />
@@ -125,7 +132,7 @@ export default function Layout({ profile }) {
         <div className="px-4 py-4 border-b border-white/10">
           <div className="flex items-center gap-3">
             <img
-              src={org?.logo_url || '/Meu_Caixa_Logo.png'}
+              src={logoSrc}
               alt="Meu Caixa"
               style={{ width: '32px', height: '32px', borderRadius: '8px', objectFit: 'cover' }}
               className="shrink-0"
@@ -203,7 +210,7 @@ export default function Layout({ profile }) {
           </button>
           <div className="flex items-center gap-2 min-w-0">
             <img
-              src={org?.logo_url || '/Meu_Caixa_Logo.png'}
+              src={logoSrc}
               alt="Meu Caixa"
               style={{ width: '28px', height: '28px', borderRadius: '6px', objectFit: 'cover' }}
               className="shrink-0"
@@ -275,13 +282,13 @@ export default function Layout({ profile }) {
                 {active && (
                   <span
                     className="absolute top-1.5 w-1.5 h-1.5 rounded-full"
-                    style={{ backgroundColor: '#0891b2' }}
+                    style={{ backgroundColor: accentColor }}
                   />
                 )}
-                <Icon size={22} style={{ color: active ? '#0891b2' : 'rgba(255,255,255,0.7)' }} />
+                <Icon size={22} style={{ color: active ? accentColor : 'rgba(255,255,255,0.7)' }} />
                 <span
                   className="text-[9px] font-semibold mt-0.5"
-                  style={{ color: active ? '#0891b2' : 'rgba(255,255,255,0.7)' }}
+                  style={{ color: active ? accentColor : 'rgba(255,255,255,0.7)' }}
                 >
                   {label}
                 </span>
@@ -310,7 +317,7 @@ export default function Layout({ profile }) {
             <div className="px-4 py-4 flex items-center justify-between border-b border-white/10 shrink-0">
               <div className="flex items-center gap-3 min-w-0">
                 <img
-                  src={org?.logo_url || '/Meu_Caixa_Logo.png'}
+                  src={logoSrc}
                   alt="Meu Caixa"
                   style={{ width: '32px', height: '32px', borderRadius: '8px', objectFit: 'cover' }}
                   className="shrink-0"

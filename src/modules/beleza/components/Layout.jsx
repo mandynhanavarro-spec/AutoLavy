@@ -3,6 +3,7 @@ import { Outlet, Link, useLocation } from 'react-router-dom'
 import { LayoutDashboard, Users, Bell, TrendingUp, Settings, LogOut } from 'lucide-react'
 import { supabase } from '../../../shared/lib/supabase'
 import { useTenantContext } from '../../../core/contexts/TenantContext'
+import { useModules } from '../../../core/hooks/useModules'
 import { BelezaProvider, useBeleza } from '../context/BelezaContext'
 
 const NAV_BOTTOM = [
@@ -24,6 +25,7 @@ function LayoutInner({ profile }) {
   const location = useLocation()
   const [org, setOrg] = useState(null)
   const { alertClients } = useBeleza()
+  const { hasModule } = useModules()
 
   useEffect(() => {
     if (profile?.org_id) {
@@ -37,6 +39,15 @@ function LayoutInner({ profile }) {
   }, [profile])
 
   const color = org?.theme_color || '#9B72CF'
+  // logo_url so e usado se o PLANO ATUAL tiver a feature white_label --
+  // checado na exibicao, nao no momento em que foi salvo. Sem isso, cai no
+  // avatar com iniciais que este layout ja usava como "sem logo" (nao no
+  // logo estatico da loja, que seria a marca errada dentro do Studio).
+  const showCustomLogo = hasModule('white_label') && Boolean(org?.logo_url)
+  // Mesma logica, aplicada ao item de menu ativo da sidebar desktop.
+  // Fallback e o proprio #7c3aed ja usado hoje (comportamento identico
+  // quando a feature nao esta habilitada).
+  const navActiveColor = (hasModule('white_label') && org?.theme_color) || '#7c3aed'
 
   function SLink({ path, icon: Icon, label, badge }) {
     const active = location.pathname === path ||
@@ -49,7 +60,7 @@ function LayoutInner({ profile }) {
             ? 'text-white shadow-sm'
             : 'text-white/70 hover:bg-white/10 hover:text-white'
         }`}
-        style={active ? { backgroundColor: '#7c3aed' } : {}}
+        style={active ? { backgroundColor: navActiveColor } : {}}
       >
         <Icon size={17} />
         {label}
@@ -76,7 +87,7 @@ function LayoutInner({ profile }) {
         {/* Org identity */}
         <div className="px-4 py-4 border-b border-white/10">
           <div className="flex items-center gap-3">
-            {org?.logo_url ? (
+            {showCustomLogo ? (
               <img
                 src={org.logo_url}
                 alt={org.name}
@@ -136,7 +147,7 @@ function LayoutInner({ profile }) {
           style={{ backgroundColor: '#1e1b4b' }}
         >
           <div className="flex items-center gap-2 min-w-0">
-            {org?.logo_url ? (
+            {showCustomLogo ? (
               <img
                 src={org.logo_url}
                 alt={org.name}

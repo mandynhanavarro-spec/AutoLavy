@@ -5,6 +5,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '../../../../shared/lib/supabase'
 import { useTenantContext } from '../../../../core/contexts/TenantContext'
+import { useModules } from '../../../../core/hooks/useModules'
 import { usePermissions } from '../../../../core/hooks/usePermissions'
 
 /* ── helpers ─────────────────────────────────────────────── */
@@ -77,10 +78,13 @@ function getStart(key) {
 
 export default function Historico() {
   const { tenant } = useTenantContext()
+  const { hasModule } = useModules()
   const { can }    = usePermissions()
   const canVoid    = can('can_void_sale')
   const orgId      = tenant?.id
-  const color      = '#0891b2'
+  // theme_color so e usado se o PLANO ATUAL tiver a feature white_label --
+  // checado na exibicao, nao no momento em que foi salvo.
+  const color      = (hasModule('white_label') && tenant?.theme_color) || '#0891b2'
 
   const [filter, setFilter]           = useState('7dias')
   const [rawSales, setRawSales]       = useState([])
@@ -784,7 +788,7 @@ export default function Historico() {
                 disabled={!addItemsCart.length || addItemsLoading}
                 className="flex-1 py-3 rounded-2xl text-white font-bold
                   text-sm disabled:opacity-40"
-                style={{ backgroundColor: '#0891b2' }}
+                style={{ backgroundColor: color }}
               >
                 {addItemsLoading
                   ? 'Salvando...'

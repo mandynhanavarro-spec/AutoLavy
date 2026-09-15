@@ -5,6 +5,7 @@ import {
   CheckCircle2, Clock, AlertCircle,
 } from 'lucide-react'
 import { supabase } from '../../shared/lib/supabase'
+import WhiteLabelSection from '../../shared/components/WhiteLabelSection'
 
 /* ── helpers ───────────────────────────────────────────────── */
 
@@ -124,6 +125,25 @@ export default function ClientOnboarding({ org, isNew = false, plans = [], segme
   })
   const [savingStore, setSavingStore] = useState(false)
   const [storeError, setStoreError]   = useState('')
+
+  /* Feature 'white_label' do plano selecionado no wizard -- aqui ainda nao
+     existe org/sessao da empresa sendo criada, entao nao da pra usar
+     useModules/TenantContext (que refletem a sessao do proprio SuperAdmin,
+     nao a org do wizard). Busca direto em saas_plan_features pelo plan_id
+     selecionado, reagindo a toda troca de plano no Step 2. */
+  const [planHasWhiteLabel, setPlanHasWhiteLabel] = useState(false)
+  useEffect(() => {
+    let mounted = true
+    if (!storeForm.plan_id) { setPlanHasWhiteLabel(false); return }
+    supabase
+      .from('saas_plan_features')
+      .select('enabled')
+      .eq('plan_id', storeForm.plan_id)
+      .eq('feature_key', 'white_label')
+      .maybeSingle()
+      .then(({ data }) => { if (mounted) setPlanHasWhiteLabel(Boolean(data?.enabled)) })
+    return () => { mounted = false }
+  }, [storeForm.plan_id])
   const [showPhoneField, setShowPhoneField]     = useState(
     sessionRestored?.show_phone         ?? Boolean(org?.phone)
   )
@@ -318,6 +338,7 @@ export default function ClientOnboarding({ org, isNew = false, plans = [], segme
     try {
       if (isNew && !createdOrg) {
         const slug = makeSlug(storeForm.name)
+        const selectedPlan = plans.find(p => p.id === storeForm.plan_id)
         const { data: newOrg, error: orgErr } = await supabase
           .from('organizations').insert({
             name:             storeForm.name.trim(),
@@ -329,6 +350,7 @@ export default function ClientOnboarding({ org, isNew = false, plans = [], segme
             address:          storeForm.address.trim()  || null,
             contact_email:    storeForm.login_email.trim().toLowerCase(),
             plan_id:          storeForm.plan_id || null,
+            plan_type:        selectedPlan?.slug || 'basic',
             product_id:       storeForm.vertical,
             segment:          storeForm.segments[0] || 'geral',
             is_active:        true,
@@ -380,9 +402,11 @@ export default function ClientOnboarding({ org, isNew = false, plans = [], segme
 
       } else {
         const oid = createdOrg?.id || orgId
+        const selectedPlan = plans.find(p => p.id === storeForm.plan_id)
         const { error } = await supabase.from('organizations').update({
           contact_email: storeForm.login_email.trim().toLowerCase() || null,
           plan_id:       storeForm.plan_id || null,
+          plan_type:     selectedPlan?.slug || 'basic',
           product_id:    storeForm.vertical,
           segment:       storeForm.segments[0] || 'geral',
         }).eq('id', oid)
@@ -1056,6 +1080,17 @@ Qualquer dúvida estou aqui! 😊`
                   )}
                 </div>
               </div>
+
+              {/* Marca / White Label -- so aparece se o PLANO selecionado no
+                  Step 2 tiver a feature habilitada (planHasWhiteLabel).
+                  Colocado aqui (Step 3) e nao no Step 2 de proposito: para
+                  uma loja NOVA a organizacao so passa a existir ao avancar
+                  do Step 2 (createdOrg e setado no fim de handleStep2Next),
+                  entao e so a partir daqui que orgId (createdOrg?.id ||
+                  org?.id) esta garantidamente disponivel para o upload de
+                  logo e o update em organizations -- sem precisar inventar
+                  um id temporario. */}
+              <WhiteLabelSection org={createdOrg || org} forceEnabled={planHasWhiteLabel} />
 
               <div className="flex justify-between">
                 <button onClick={() => setStep(2)} className="flex items-center gap-2 px-5 py-3 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-colors">

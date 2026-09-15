@@ -3,6 +3,7 @@ import { Plus, Pencil, Trash2, X, Package, AlertTriangle, FlaskConical, Lock, Un
 import { BrowserMultiFormatReader } from '@zxing/browser'
 import { supabase } from '../../../../shared/lib/supabase'
 import { useTenantContext } from '../../../../core/contexts/TenantContext'
+import { useModules } from '../../../../core/hooks/useModules'
 import { usePermissions } from '../../../../core/hooks/usePermissions'
 import { useMultiPDV } from '../../../../core/hooks/useMultiPDV'
 
@@ -1262,11 +1263,14 @@ function Field({ label, children }) {
 
 export default function Produtos() {
   const { tenant } = useTenantContext()
+  const { hasModule } = useModules()
   const { can } = usePermissions()
   const { hasMultiplePDV } = useMultiPDV()
   const canManage = can('can_manage_products')
   const orgId  = tenant?.id
-  const color  = '#0891b2'
+  // theme_color so e usado se o PLANO ATUAL tiver a feature white_label --
+  // checado na exibicao, nao no momento em que foi salvo.
+  const color  = (hasModule('white_label') && tenant?.theme_color) || '#0891b2'
   const segment = tenant?.segment || 'geral'
 
   const [products, setProducts] = useState([])

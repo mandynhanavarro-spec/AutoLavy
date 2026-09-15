@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '../../../../shared/lib/supabase'
 import { useTenantContext } from '../../../../core/contexts/TenantContext'
+import { useModules } from '../../../../core/hooks/useModules'
 import { usePermissions } from '../../../../core/hooks/usePermissions'
 
 /* ── helpers ─────────────────────────────────────────────── */
@@ -42,10 +43,13 @@ function sumByMethod(sales, method) {
 
 export default function Fechamento() {
   const { tenant, profile } = useTenantContext()
+  const { hasModule } = useModules()
   const { can }   = usePermissions()
   const canClose  = can('can_close_cash')
   const orgId     = tenant?.id
-  const color     = '#0891b2'
+  // theme_color so e usado se o PLANO ATUAL tiver a feature white_label --
+  // checado na exibicao, nao no momento em que foi salvo.
+  const color     = (hasModule('white_label') && tenant?.theme_color) || '#0891b2'
   const navigate  = useNavigate()
   const historyRef = useRef(null)
 
@@ -254,7 +258,7 @@ export default function Fechamento() {
           onClick={() => isMulti ? fecharTodos() : fecharCaixa()}
           disabled={quickCloseDisabled}
           className="flex flex-col items-center justify-center gap-1.5 rounded-[10px] p-3"
-          style={{ backgroundColor: quickCloseDisabled ? '#e5e7eb' : '#0891b2' }}
+          style={{ backgroundColor: quickCloseDisabled ? '#e5e7eb' : color }}
         >
           <Lock size={22} style={{ color: quickCloseDisabled ? '#9ca3af' : 'white' }} />
           <span

@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
-import { BrowserRouter as Router, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { BrowserRouter as Router, Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom'
 import { TenantProvider } from './core/contexts/TenantContext'
 import Register from './core/pages/Register'
 import DefinirSenha from './core/pages/DefinirSenha'
@@ -7,6 +7,7 @@ import MFAGate from './shared/components/MFAGate'
 import SuspensaoPage from './core/pages/Suspenso'
 import { supabase } from './shared/lib/supabase'
 import { useServiceWorker } from './hooks/useServiceWorker'
+import { useOrgBranding } from './core/hooks/useOrgBranding'
 
 // ── Loja vertical (lazy) ──────────────────────────────────────
 const LojaLayout        = lazy(() => import('./modules/loja/components/Layout'))
@@ -107,7 +108,11 @@ function VerticalEmConstrucao({ productId }) {
 function RouteTracker() {
   const location = useLocation()
   useEffect(() => {
-    if (location.pathname !== '/login') {
+    // Exclui tanto /login quanto /:orgSlug/login -- sem isso, visitar uma
+    // rota de login por slug gravaria ela como last_route e, apos
+    // autenticar, o redirect da propria rota de login voltaria pra ela
+    // mesma (loop).
+    if (!/\/login$/.test(location.pathname)) {
       sessionStorage.setItem('last_route', location.pathname)
     }
   }, [location.pathname])
@@ -116,6 +121,25 @@ function RouteTracker() {
 
 // ── Paginas pequenas (eager — necessarias no primeiro load) ────
 function LoginPage() {
+  // orgSlug so existe quando a rota e /:orgSlug/login; na rota generica
+  // /login ele vem undefined e o hook devolve branding=null (visual padrao).
+  const { orgSlug } = useParams()
+  const { branding } = useOrgBranding(orgSlug)
+
+  // "Interruptor" do white label: SOMENTE branding.logoUrl decide a troca
+  // (garantido pelo proprio useOrgBranding). CSS vars sao aplicadas so no
+  // escopo deste componente (nao em :root), via style no wrapper.
+  const brandingVars = branding
+    ? {
+        ...(branding.themeColor ? { '--color-primary': branding.themeColor } : {}),
+        ...(branding.secondaryColor ? { '--color-secondary': branding.secondaryColor } : {}),
+      }
+    : {}
+  const logoSrc   = branding?.logoUrl || '/Meu_Caixa_Logo.png'
+  const logoAlt   = branding?.name || 'Meu Caixa'
+  const brandTitle = branding ? `Bem-vindo à ${branding.name}` : 'Bem-vindo ao Meu Caixa'
+  const brandSubtitle = branding?.slogan || 'Gerencie sua loja com facilidade, digite seus dados para continuar.'
+
   const [mode, setMode] = useState('login') // 'login' | 'forgot'
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -163,12 +187,12 @@ function LoginPage() {
 
   if (mode === 'forgot') {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4" style={brandingVars}>
         <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-sm border border-slate-100 space-y-5">
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '16px' }}>
             <img
-              src="/Meu_Caixa_Logo.png"
-              alt="Meu Caixa"
+              src={logoSrc}
+              alt={logoAlt}
               style={{ width: '72px', height: '72px', borderRadius: '16px', objectFit: 'cover', marginBottom: '8px' }}
             />
           </div>
@@ -195,7 +219,7 @@ function LoginPage() {
               <button
                 type="submit"
                 disabled={forgotSubmitting}
-                className="w-full rounded-2xl bg-slate-900 px-4 py-3 font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                className="w-full rounded-2xl bg-[var(--color-primary,#0f172a)] px-4 py-3 font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {forgotSubmitting ? 'Enviando...' : 'Enviar link de recuperação'}
               </button>
@@ -205,7 +229,7 @@ function LoginPage() {
           <button
             type="button"
             onClick={() => setMode('login')}
-            className="w-full text-center text-sm text-slate-500 hover:text-slate-700 font-medium"
+            className="w-full text-center text-sm text-[var(--color-secondary,#64748b)] hover:opacity-80 font-medium"
           >
             Voltar ao login
           </button>
@@ -215,18 +239,18 @@ function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4" style={brandingVars}>
       <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-sm border border-slate-100 space-y-5">
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '16px' }}>
           <img
-            src="/Meu_Caixa_Logo.png"
-            alt="Meu Caixa"
+            src={logoSrc}
+            alt={logoAlt}
             style={{ width: '72px', height: '72px', borderRadius: '16px', objectFit: 'cover', marginBottom: '8px' }}
           />
         </div>
         <div>
-          <h1 className="text-2xl font-black text-slate-900">Bem-vindo ao Meu Caixa</h1>
-          <p className="text-sm text-slate-500 mt-1">Gerencie sua loja com facilidade, digite seus dados para continuar.</p>
+          <h1 className="text-2xl font-black text-slate-900">{brandTitle}</h1>
+          <p className="text-sm text-slate-500 mt-1">{brandSubtitle}</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -256,7 +280,7 @@ function LoginPage() {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full rounded-2xl bg-slate-900 px-4 py-3 font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
+            className="w-full rounded-2xl bg-[var(--color-primary,#0f172a)] px-4 py-3 font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
           >
             {submitting ? 'Entrando...' : 'Entrar'}
           </button>
@@ -264,7 +288,7 @@ function LoginPage() {
           <button
             type="button"
             onClick={openForgotPassword}
-            className="w-full text-center text-sm text-slate-500 hover:text-slate-700 font-medium"
+            className="w-full text-center text-sm text-[var(--color-secondary,#64748b)] hover:opacity-80 font-medium"
           >
             Esqueci minha senha
           </button>
@@ -577,6 +601,7 @@ export default function App() {
         <RouteTracker />
         <Routes>
           <Route path="/login"      element={!session ? <LoginPage /> : <Navigate to={sessionStorage.getItem('last_route') || '/'} replace />} />
+          <Route path="/:orgSlug/login" element={!session ? <LoginPage /> : <Navigate to={sessionStorage.getItem('last_route') || '/'} replace />} />
           <Route path="/registrar"  element={<Register />} />
           <Route path="/definir-senha" element={<DefinirSenha />} />
           <Route path="/upgrade"    element={<UpgradePage />} />

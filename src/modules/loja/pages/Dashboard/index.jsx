@@ -3,6 +3,7 @@ import { useNavigate, Navigate } from 'react-router-dom'
 import { ShoppingCart, TrendingUp, CreditCard, Package, AlertTriangle, Eye, EyeOff } from 'lucide-react'
 import { supabase } from '../../../../shared/lib/supabase'
 import { useTenantContext } from '../../../../core/contexts/TenantContext'
+import { useModules } from '../../../../core/hooks/useModules'
 
 function fmt(val) {
   return Number(val).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -39,6 +40,7 @@ function todayISO() {
 
 export default function Dashboard() {
   const { tenant, profile } = useTenantContext()
+  const { hasModule } = useModules()
   const navigate = useNavigate()
   const [tab, setTab]               = useState('hoje')
   const [loading, setLoading]       = useState(true)
@@ -52,7 +54,9 @@ export default function Dashboard() {
   const [regClosedMap, setRegClosedMap] = useState({})
 
   const orgId      = tenant?.id
-  const themeColor = '#0891b2'
+  // theme_color so e usado se o PLANO ATUAL tiver a feature white_label --
+  // checado na exibicao, nao no momento em que foi salvo.
+  const themeColor = (hasModule('white_label') && tenant?.theme_color) || '#0891b2'
 
   const [valuesHidden, setValuesHidden] = useState(
     () => localStorage.getItem('dashboard_values_hidden') === 'true'

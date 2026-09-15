@@ -6,7 +6,9 @@ import {
 import { supabase } from '../../../../shared/lib/supabase'
 import { isPasswordPwned } from '../../../../shared/lib/checkPwnedPassword'
 import { useTenantContext } from '../../../../core/contexts/TenantContext'
+import { useModules } from '../../../../core/hooks/useModules'
 import { PERM_LABELS, ALL_PERM_KEYS, DEFAULT_PERMISSIONS } from '../../../../core/hooks/usePermissions'
+import WhiteLabelSection from '../../../../shared/components/WhiteLabelSection'
 
 /* ── sub-components ──────────────────────────────────────── */
 
@@ -42,8 +44,11 @@ function Field({ label, children }) {
 
 export default function Configuracoes() {
   const { tenant, profile } = useTenantContext()
+  const { hasModule } = useModules()
   const orgId   = tenant?.id
-  const color   = '#0891b2'
+  // theme_color so e usado se o PLANO ATUAL tiver a feature white_label --
+  // checado na exibicao, nao no momento em que foi salvo.
+  const color   = (hasModule('white_label') && tenant?.theme_color) || '#0891b2'
   const isAdmin = profile?.role === 'admin' || profile?.role === 'superadmin'
 
   /* meus caixas */
@@ -513,6 +518,9 @@ export default function Configuracoes() {
           </div>
         )}
       </Section>
+
+      {/* ════ Marca / White Label ════ */}
+      <WhiteLabelSection />
 
       {/* ════ Grade de Variações (moda / kit) ════ */}
       {isAdmin && hasGradeCategories && (

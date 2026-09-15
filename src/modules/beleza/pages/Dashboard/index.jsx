@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { Users, DollarSign, Bell, TrendingUp, Scissors } from 'lucide-react'
 import { useTenantContext } from '../../../../core/contexts/TenantContext'
+import { useModules } from '../../../../core/hooks/useModules'
 import { useBeleza } from '../../context/BelezaContext'
 import { fmtCur, fmtDate, daysSince } from '../../lib/helpers'
 
@@ -17,9 +18,13 @@ function Avatar({ name, size = 'md' }) {
 export default function Dashboard() {
   const navigate = useNavigate()
   const { tenant } = useTenantContext()
+  const { hasModule } = useModules()
   const { clients, services, alertClients, loading } = useBeleza()
 
-  const color = tenant?.theme_color || '#9B72CF'
+  // theme_color so e usado se o PLANO ATUAL tiver a feature white_label --
+  // checado na exibicao, nao no momento em que foi salvo, pra sumir
+  // automaticamente num downgrade e voltar sozinho num upgrade.
+  const color = (hasModule('white_label') && tenant?.theme_color) || '#9B72CF'
 
   const totalRevenue = services.reduce((sum, s) => sum + s.value, 0)
   const thisMonth = services

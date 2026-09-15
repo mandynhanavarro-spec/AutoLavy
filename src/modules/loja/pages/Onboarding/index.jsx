@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom'
 import { Store, Tag, Users, Check, Plus, X, ArrowRight, CheckCircle2 } from 'lucide-react'
 import { supabase } from '../../../../shared/lib/supabase'
 import { useTenantContext } from '../../../../core/contexts/TenantContext'
+import { useModules } from '../../../../core/hooks/useModules'
 
 const SEGMENT_SUGGESTIONS = {
   geral:       ['Alimentos', 'Bebidas', 'Higiene', 'Limpeza', 'Outros'],
@@ -31,9 +32,12 @@ const DEMO_PRODUCTS = [
 
 export default function LojaOnboarding() {
   const { tenant, profile } = useTenantContext()
+  const { hasModule } = useModules()
   const orgId    = tenant?.id
   const segment  = tenant?.segment || 'geral'
-  const color    = '#0891b2'
+  // theme_color so e usado se o PLANO ATUAL tiver a feature white_label --
+  // checado na exibicao, nao no momento em que foi salvo.
+  const color    = (hasModule('white_label') && tenant?.theme_color) || '#0891b2'
   const suggestions = SEGMENT_SUGGESTIONS[segment] || FALLBACK_SUGGESTIONS
 
   const [step, setStep]                     = useState(0)
