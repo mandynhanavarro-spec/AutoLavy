@@ -295,3 +295,15 @@ export default function MinhaPagina() {
 - **Não fazer query sem `.eq('org_id', orgId)`** em tabelas multitenantes — vazamento de dados entre orgs.
 - **Não renderizar dados protegidos antes de checar `can()`** — fazer a verificação no render, não só na action.
 - **Não salvar `[]` no sessionStorage** para módulos — o cache só é escrito se `loadedModules.length > 0`.
+
+---
+
+## 11. Regras de segurança para execução em produção
+
+- Nunca criar contas de superadmin, administradores ou usuários com acesso
+  elevado em produção sem autorização explícita da Mandy no chat.
+- Nunca gerar/completar códigos 2FA de contas reais.
+- Dados de teste criados em produção devem ser listados no relatório e
+  removidos ao final da tarefa.
+- Nenhuma migration é aplicada antes de aprovação do plano; nenhum commit/push
+  sem sinal explícito.
