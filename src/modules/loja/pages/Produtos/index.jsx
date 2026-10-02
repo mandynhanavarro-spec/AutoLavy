@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Pencil, Trash2, X, Package, AlertTriangle, FlaskConical, Lock, Unlock, Tag, LayoutGrid, List, Camera, Check } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, Package, AlertTriangle, FlaskConical, Lock, Unlock, Tag, LayoutGrid, List, Camera, Check, ArchiveRestore } from 'lucide-react'
 import { BrowserMultiFormatReader } from '@zxing/browser'
 import { supabase } from '../../../../shared/lib/supabase'
 import { useTenantContext } from '../../../../core/contexts/TenantContext'
@@ -9,6 +9,13 @@ import { useMultiPDV } from '../../../../core/hooks/useMultiPDV'
 import { friendlyError, parsePlanLimitError } from '../../../../shared/lib/planLimitError'
 
 /* ── helpers ─────────────────────────────────────────────── */
+
+/* unique_sku_per_org violada. No cadastro rápido (lote) não oferecemos
+   reativar o arquivado dono do código -- só a mensagem simples, sem o
+   erro cru do Postgres. */
+function isSkuUniqueViolation(error) {
+  return error?.code === '23505' || (error?.message || '').includes('unique_sku_per_org')
+}
 
 function brl(val) {
   return Number(val).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -188,6 +195,7 @@ function QuickAddModal({
       if (!error) { savedCount++; continue }
       const parsed = parsePlanLimitError(error.message)
       if (parsed) limitMsg = parsed
+      else if (isSkuUniqueViolation(error)) otherErrorMsg = `Já existe um produto com este código de barras: ${row.sku}.`
       else otherErrorMsg = error.message
       break
     }
@@ -277,7 +285,9 @@ function QuickAddModal({
       onSaved()
       onClose()
     } catch (err) {
-      alert('Erro ao salvar: ' + err.message)
+      alert(isSkuUniqueViolation(err)
+        ? `Já existe um produto com este código de barras: ${kitSku.trim()}.`
+        : 'Erro ao salvar: ' + err.message)
     } finally {
       setSaving(false)
     }
@@ -1305,6 +1315,7 @@ export default function Produtos() {
   const [seeding, setSeeding]   = useState(false)
   const [search, setSearch]     = useState('')
   const [viewMode, setViewMode] = useState(() => localStorage.getItem('produtos_view_mode') || 'cards')
+  const [statusFilter, setStatusFilter] = useState('ativos') // 'ativos' | 'arquivados'
 
   /* segment-specific state */
   const [gradeConfig, setGradeConfig]       = useState(null)
@@ -1321,7 +1332,9 @@ export default function Produtos() {
   const [catDeleting, setCatDeleting] = useState(null)
   const [orgSegments, setOrgSegments] = useState([])
 
-  const hasDemos       = products.some(p => p.is_demo)
+  const hasDemos       = products.some(p => p.is_demo && !p.archived_at)
+  const activeProducts   = products.filter(p => !p.archived_at)
+  const archivedProducts = products.filter(p => p.archived_at)
   const catMap         = Object.fromEntries(categories.map(c => [c.id, c.name]))
   const catSegmentMap  = Object.fromEntries(categories.filter(c => c.segment_id).map(c => [c.id, c.segment_id]))
   const showCategories = hasMultiplePDV || orgSegments.length >= 2
@@ -1332,7 +1345,7 @@ export default function Produtos() {
     setLoading(true)
     const { data } = await supabase
       .from('products')
-      .select('id, name, price, cost_price, stock_quantity, min_stock_alert, sku, is_demo, category_id')
+      .select('id, name, price, cost_price, stock_quantity, min_stock_alert, sku, is_demo, category_id, archived_at')
       .eq('org_id', orgId)
       .order('name')
     setProducts(data || [])
@@ -1500,13 +1513,20 @@ export default function Produtos() {
     if (modal === 'new') {
       const { data, error } = await supabase.from('products').insert({ ...payload, org_id: orgId }).select('id').single()
       if (error) {
+        if (await handleSkuConflict(error, payload.sku, null)) { setSaving(false); return }
         alert(friendlyError(error, 'Erro ao salvar: ' + error.message))
         setSaving(false)
         return
       }
       productId = data?.id
     } else {
-      await supabase.from('products').update(payload).eq('id', modal.id).eq('org_id', orgId)
+      const { error } = await supabase.from('products').update(payload).eq('id', modal.id).eq('org_id', orgId)
+      if (error) {
+        if (await handleSkuConflict(error, payload.sku, modal.id)) { setSaving(false); return }
+        alert(friendlyError(error, 'Erro ao salvar: ' + error.message))
+        setSaving(false)
+        return
+      }
       productId = modal.id
     }
 
@@ -1542,29 +1562,132 @@ export default function Produtos() {
     load()
   }
 
-  /* delete product */
+  /* Detecta violação de unique_sku_per_org e, se o dono do código for um
+     produto ARQUIVADO, oferece reativá-lo em vez do erro técnico cru.
+     Retorna true se tratou o erro (o chamador não deve mostrar mais nada). */
+  async function handleSkuConflict(error, sku, excludeId) {
+    const isUniqueViolation = error.code === '23505' || (error.message || '').includes('unique_sku_per_org')
+    if (!isUniqueViolation || !sku) return false
+
+    let query = supabase.from('products').select('id, name, archived_at').eq('org_id', orgId).eq('sku', sku)
+    if (excludeId) query = query.neq('id', excludeId)
+    const { data: existing } = await query.maybeSingle()
+
+    if (!existing?.archived_at) return false // duplicata com produto ativo -- erro genérico mesmo
+
+    const wantsReactivate = window.confirm(
+      `Já existe um produto arquivado com este código: "${existing.name}". Deseja reativá-lo?`
+    )
+    if (wantsReactivate) {
+      await reactivateProduct(existing)
+      setModal(null)
+    }
+    return true
+  }
+
+  /* arquivar / reativar */
+  async function archiveProduct(product) {
+    setDeleting(product.id)
+    const { error } = await supabase.from('products')
+      .update({ archived_at: new Date().toISOString() })
+      .eq('id', product.id).eq('org_id', orgId)
+    setDeleting(null)
+    if (error) { alert(friendlyError(error, 'Erro ao arquivar: ' + error.message)); return }
+    load()
+  }
+
+  async function reactivateProduct(product) {
+    setDeleting(product.id)
+    const { error } = await supabase.from('products')
+      .update({ archived_at: null })
+      .eq('id', product.id).eq('org_id', orgId)
+    setDeleting(null)
+    if (error) {
+      alert(friendlyError(error, 'Erro ao reativar: ' + error.message))
+      return
+    }
+    load()
+  }
+
+  /* delete product -- só é permitido se o produto nunca foi vendido;
+     se já foi vendido (sale_items não tem CASCADE, de propósito, pra
+     preservar o histórico), oferece arquivar no lugar. */
   async function del(product) {
+    setDeleting(product.id)
+    const { data: soldRows } = await supabase
+      .from('sale_items')
+      .select('id')
+      .eq('product_id', product.id)
+      .eq('org_id', orgId)
+      .limit(1)
+    const alreadySold = (soldRows?.length ?? 0) > 0
+    setDeleting(null)
+
+    if (alreadySold) {
+      offerArchiveInstead(product)
+      return
+    }
+
     if (!window.confirm(`Excluir "${product.name}"?`)) return
     setDeleting(product.id)
-    await supabase.from('product_variants').delete().eq('product_id', product.id).eq('org_id', orgId)
-    await supabase.from('product_attributes').delete().eq('product_id', product.id).eq('org_id', orgId)
+    // product_variants e product_attributes já têm CASCADE pra products --
+    // não apaga manualmente antes: se o DELETE do produto falhar (corrida
+    // com uma venda registrada nesse meio-tempo), as variações já teriam
+    // sido perdidas sem necessidade.
     const { error } = await supabase.from('products').delete().eq('id', product.id).eq('org_id', orgId)
     setDeleting(null)
     if (error) {
-      alert(
-        'Não foi possível excluir este produto: ' + error.message +
-        '\n\nIsso costuma acontecer quando já existem vendas registradas com ele.'
-      )
+      // Corrida: uma venda foi registrada entre a checagem e o delete (FK
+      // violation) -- nunca mostra o erro cru do Postgres pro lojista.
+      offerArchiveInstead(product)
       return
     }
     setProducts(prev => prev.filter(p => p.id !== product.id))
   }
 
-  /* remove all demos */
+  function offerArchiveInstead(product) {
+    const wantsArchive = window.confirm(
+      'Este produto já tem vendas registradas e não pode ser excluído, para manter seu histórico correto.\n\n' +
+      'Você pode arquivá-lo: ele some do caixa e da lista, mas continua nos relatórios.\n\n' +
+      'Arquivar este produto agora?'
+    )
+    if (wantsArchive) archiveProduct(product)
+  }
+
+  /* remove all demos -- os que já tiveram venda são ARQUIVADOS (não dá pra
+     excluir, mesma regra de qualquer produto vendido), os demais são
+     excluídos de verdade. */
   async function removeDemos() {
     if (!window.confirm('Remover todos os produtos demo desta loja?')) return
-    await supabase.from('products').delete().eq('org_id', orgId).eq('is_demo', true)
-    setProducts(prev => prev.filter(p => !p.is_demo))
+    const demos = products.filter(p => p.is_demo && !p.archived_at)
+    if (demos.length === 0) return
+
+    let removedCount = 0
+    let archivedCount = 0
+    for (const demo of demos) {
+      const { data: soldRows } = await supabase
+        .from('sale_items')
+        .select('id')
+        .eq('product_id', demo.id)
+        .eq('org_id', orgId)
+        .limit(1)
+      if ((soldRows?.length ?? 0) > 0) {
+        await supabase.from('products').update({ archived_at: new Date().toISOString() }).eq('id', demo.id).eq('org_id', orgId)
+        archivedCount++
+      } else {
+        // CASCADE cuida de variants/attributes -- não apaga antes.
+        await supabase.from('products').delete().eq('id', demo.id).eq('org_id', orgId)
+        removedCount++
+      }
+    }
+
+    alert(
+      `${removedCount} exemplo${removedCount === 1 ? '' : 's'} removido${removedCount === 1 ? '' : 's'}` +
+      (archivedCount > 0
+        ? `, ${archivedCount} arquivado${archivedCount === 1 ? '' : 's'} porque já ${archivedCount === 1 ? 'tinha' : 'tinham'} vendas.`
+        : '.')
+    )
+    load()
   }
 
   /* seed demo products */
@@ -1637,13 +1760,20 @@ export default function Produtos() {
   async function deleteCategory(cat) {
     if (!window.confirm(`Excluir categoria "${cat.name}"?`)) return
     setCatDeleting(cat.id)
-    const { count } = await supabase
+    const { count: total } = await supabase
       .from('products')
       .select('id', { count: 'exact', head: true })
       .eq('category_id', cat.id)
       .eq('org_id', orgId)
-    if (count > 0) {
-      alert(`Não é possível excluir. ${count} produto${count !== 1 ? 's' : ''} ainda ${count !== 1 ? 'estão' : 'está'} nesta categoria.`)
+    if (total > 0) {
+      const { count: archivedCount } = await supabase
+        .from('products')
+        .select('id', { count: 'exact', head: true })
+        .eq('category_id', cat.id)
+        .eq('org_id', orgId)
+        .not('archived_at', 'is', null)
+      const archivedPart = archivedCount > 0 ? ` (${archivedCount} arquivado${archivedCount !== 1 ? 's' : ''})` : ''
+      alert(`Não é possível excluir. Esta categoria tem ${total} produto${total !== 1 ? 's' : ''}${archivedPart}.`)
       setCatDeleting(null)
       return
     }
@@ -1653,7 +1783,8 @@ export default function Produtos() {
   }
 
   /* filtered list */
-  const filtered = products.filter(p => {
+  const baseList = statusFilter === 'arquivados' ? archivedProducts : activeProducts
+  const filtered = baseList.filter(p => {
     const q = search.toLowerCase()
     return p.name.toLowerCase().includes(q) || (p.sku && p.sku.toLowerCase().includes(q))
   })
@@ -1666,7 +1797,7 @@ export default function Produtos() {
       <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-xl font-black text-gray-900">Produtos</h1>
-          <p className="text-xs text-gray-400 mt-0.5">{products.length} cadastrado{products.length !== 1 ? 's' : ''}</p>
+          <p className="text-xs text-gray-400 mt-0.5">{activeProducts.length} cadastrado{activeProducts.length !== 1 ? 's' : ''}</p>
         </div>
         {canManage ? (
           <button
@@ -1769,6 +1900,31 @@ export default function Produtos() {
         </div>
       )}
 
+      {/* Status filter: ativos / arquivados */}
+      {products.length > 0 && (
+        <div className="mb-3 flex gap-1.5">
+          {[
+            { key: 'ativos',     label: `Ativos (${activeProducts.length})` },
+            { key: 'arquivados', label: `Arquivados (${archivedProducts.length})` },
+          ].map(({ key, label }) => {
+            const active = statusFilter === key
+            return (
+              <button
+                key={key}
+                onClick={() => setStatusFilter(key)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border"
+                style={active
+                  ? { backgroundColor: '#374151', color: 'white', borderColor: '#374151' }
+                  : { backgroundColor: 'white',   color: '#6b7280', borderColor: '#e5e7eb' }
+                }
+              >
+                {label}
+              </button>
+            )
+          })}
+        </div>
+      )}
+
       {/* View mode toggle */}
       {products.length > 0 && (
         <div className="mb-3 flex gap-1.5">
@@ -1846,7 +2002,11 @@ export default function Produtos() {
           </div>
         </div>
       ) : filtered.length === 0 ? (
-        <p className="text-center text-sm text-gray-400 py-10">Nenhum produto encontrado.</p>
+        <p className="text-center text-sm text-gray-400 py-10">
+          {statusFilter === 'arquivados' && !search
+            ? 'Nenhum produto arquivado.'
+            : 'Nenhum produto encontrado.'}
+        </p>
       ) : (
         <>
           {viewMode === 'cards' ? (<>
@@ -1886,6 +2046,11 @@ export default function Produtos() {
                       {p.is_demo && (
                         <span className="text-[9px] font-black uppercase px-1.5 py-0.5 bg-amber-100 text-amber-600 rounded-md shrink-0">
                           demo
+                        </span>
+                      )}
+                      {p.archived_at && (
+                        <span className="text-[9px] font-black uppercase px-1.5 py-0.5 bg-gray-200 text-gray-500 rounded-md shrink-0">
+                          arquivado
                         </span>
                       )}
                       {out && (
@@ -1928,23 +2093,35 @@ export default function Produtos() {
                   {/* Actions */}
                   <div className="flex items-center gap-1 shrink-0">
                     {canManage ? (
-                      <>
+                      p.archived_at ? (
                         <button
-                          onClick={() => openEdit(p)}
-                          className="w-8 h-8 rounded-xl bg-gray-50 hover:bg-blue-50 flex items-center justify-center transition-colors group"
-                          title="Editar"
-                        >
-                          <Pencil size={13} className="text-gray-400 group-hover:text-blue-600" />
-                        </button>
-                        <button
-                          onClick={() => del(p)}
+                          onClick={() => reactivateProduct(p)}
                           disabled={deleting === p.id}
-                          className="w-8 h-8 rounded-xl bg-gray-50 hover:bg-red-50 flex items-center justify-center transition-colors group disabled:opacity-40"
-                          title="Excluir"
+                          className="flex items-center gap-1.5 px-3 h-8 rounded-xl bg-gray-50 hover:bg-emerald-50 text-xs font-bold text-gray-500 hover:text-emerald-600 transition-colors disabled:opacity-40"
+                          title="Reativar"
                         >
-                          <Trash2 size={13} className="text-gray-400 group-hover:text-red-500" />
+                          <ArchiveRestore size={13} />
+                          Reativar
                         </button>
-                      </>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => openEdit(p)}
+                            className="w-8 h-8 rounded-xl bg-gray-50 hover:bg-blue-50 flex items-center justify-center transition-colors group"
+                            title="Editar"
+                          >
+                            <Pencil size={13} className="text-gray-400 group-hover:text-blue-600" />
+                          </button>
+                          <button
+                            onClick={() => del(p)}
+                            disabled={deleting === p.id}
+                            className="w-8 h-8 rounded-xl bg-gray-50 hover:bg-red-50 flex items-center justify-center transition-colors group disabled:opacity-40"
+                            title="Excluir"
+                          >
+                            <Trash2 size={13} className="text-gray-400 group-hover:text-red-500" />
+                          </button>
+                        </>
+                      )
                     ) : (
                       <div title="Sem permissão para gerenciar produtos" className="w-8 h-8 rounded-xl bg-gray-50 flex items-center justify-center">
                         <Lock size={13} className="text-gray-300" />
@@ -1979,12 +2156,23 @@ export default function Produtos() {
                     </span>
                     <div className="flex justify-end">
                       {canManage ? (
-                        <button
-                          onClick={() => openEdit(p)}
-                          className="w-6 h-6 rounded-lg bg-gray-50 hover:bg-blue-50 flex items-center justify-center transition-colors group"
-                        >
-                          <Pencil size={11} className="text-gray-400 group-hover:text-blue-600" />
-                        </button>
+                        p.archived_at ? (
+                          <button
+                            onClick={() => reactivateProduct(p)}
+                            disabled={deleting === p.id}
+                            className="w-6 h-6 rounded-lg bg-gray-50 hover:bg-emerald-50 flex items-center justify-center transition-colors group disabled:opacity-40"
+                            title="Reativar"
+                          >
+                            <ArchiveRestore size={11} className="text-gray-400 group-hover:text-emerald-600" />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => openEdit(p)}
+                            className="w-6 h-6 rounded-lg bg-gray-50 hover:bg-blue-50 flex items-center justify-center transition-colors group"
+                          >
+                            <Pencil size={11} className="text-gray-400 group-hover:text-blue-600" />
+                          </button>
+                        )
                       ) : (
                         <Lock size={11} className="text-gray-300" />
                       )}

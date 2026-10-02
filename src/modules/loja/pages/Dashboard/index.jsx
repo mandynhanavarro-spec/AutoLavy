@@ -104,7 +104,8 @@ export default function Dashboard() {
         supabase
           .from('products')
           .select('id, stock_quantity, min_stock_alert')
-          .eq('org_id', orgId),
+          .eq('org_id', orgId)
+          .is('archived_at', null),
         supabase
           .from('sale_items')
           .select('product_id, quantity, products(name)')

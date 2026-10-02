@@ -444,6 +444,7 @@ export default function Caixa() {
           .from('products')
           .select('id, name, price, cost_price, stock_quantity, min_stock_alert, sku, category_id')
           .eq('org_id', orgId)
+          .is('archived_at', null)
           .order('name'),
         supabase
           .from('categories')

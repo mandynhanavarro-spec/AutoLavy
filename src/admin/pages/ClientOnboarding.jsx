@@ -244,6 +244,7 @@ export default function ClientOnboarding({ org, isNew = false, plans = [], segme
       .from('products')
       .select('id', { count: 'exact', head: true })
       .eq('org_id', oid)
+      .is('archived_at', null)
     setExistingProductCount(count ?? 0)
   }
 

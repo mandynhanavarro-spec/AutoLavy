@@ -157,6 +157,7 @@ export default function Historico() {
       .from('products')
       .select('id, name, price, stock_quantity, cost_price')
       .eq('org_id', orgId)
+      .is('archived_at', null)
       .order('name')
       .then(({ data }) => setProducts(data || []))
   }, [orgId])
