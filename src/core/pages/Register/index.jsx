@@ -135,9 +135,11 @@ export default function Register() {
       if (!userId) throw new Error('Não foi possível identificar o usuário. Tente novamente.')
 
       // 2. Completar onboarding via RPC
+      // Não envia user_id -- a função usa auth.uid() internamente (a sessão
+      // já existe nesse ponto, criada pelo signUp/signIn acima). Ver migration
+      // 20261002122506_security_harden_functions.
       const { error: rpcError } = await supabase.rpc('complete_store_onboarding', {
         invite_token: token,
-        user_id: userId,
         p_cnpj: form.cnpj.trim() || null,
         p_phone: form.phone.trim() || null,
         p_address: form.address.trim() || null,
