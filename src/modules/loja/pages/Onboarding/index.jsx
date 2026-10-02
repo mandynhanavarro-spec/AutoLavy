@@ -5,6 +5,8 @@ import { supabase } from '../../../../shared/lib/supabase'
 import { useTenantContext } from '../../../../core/contexts/TenantContext'
 import { useModules } from '../../../../core/hooks/useModules'
 import { friendlyError } from '../../../../shared/lib/planLimitError'
+import { previewEmployeeEmail } from '../../../../shared/lib/employeeEmail'
+import CopyButton from '../../../../shared/components/CopyButton'
 
 const SEGMENT_SUGGESTIONS = {
   geral:       ['Alimentos', 'Bebidas', 'Higiene', 'Limpeza', 'Outros'],
@@ -16,12 +18,6 @@ const FALLBACK_SUGGESTIONS = ['Produtos', 'Serviços', 'Promoções', 'Importado
 function genPassword() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#'
   return Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
-}
-
-function normalizeDomain(name) {
-  return (name || '').trim().toLowerCase()
-    .normalize('NFD').replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 }
 
 const DEMO_PRODUCTS = [
@@ -357,7 +353,6 @@ export default function LojaOnboarding() {
   }
 
   /* ── Step 2: Equipe ──────────────────────────────────────── */
-  const domain = normalizeDomain(tenant?.name) || 'empresa'
   const successCount = teamResults.filter(r => r.success).length
   const hasMembersOrResults = teamMembers.length > 0 || teamResults.length > 0
 
@@ -409,7 +404,7 @@ export default function LojaOnboarding() {
                   />
                   {m.email && !m.email.includes('@') && (
                     <p className="text-[10px] font-mono mt-1 px-1" style={{ color }}>
-                      → {m.email}@{domain}.com
+                      → {previewEmployeeEmail(m.email, tenant?.slug)}
                     </p>
                   )}
                 </div>
@@ -472,13 +467,16 @@ export default function LojaOnboarding() {
                   ? <Check size={13} className="text-emerald-600 mt-0.5 shrink-0" />
                   : <X size={13} className="text-red-500 mt-0.5 shrink-0" />
                 }
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="text-xs font-bold text-gray-800 truncate">{r.name} · {r.email}</p>
                   {r.success
                     ? <p className="text-[10px] font-mono text-emerald-700 mt-0.5">Senha: {r.password}</p>
                     : <p className="text-[10px] text-red-600 mt-0.5">{r.errorMsg}</p>
                   }
                 </div>
+                {r.success && (
+                  <CopyButton text={`Login: ${r.email}\nSenha: ${r.password}`} color={color} />
+                )}
               </div>
             ))}
           </div>

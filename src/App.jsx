@@ -149,6 +149,7 @@ function LoginPage() {
   const [forgotEmail, setForgotEmail] = useState('')
   const [forgotSent, setForgotSent] = useState(false)
   const [forgotSubmitting, setForgotSubmitting] = useState(false)
+  const [forgotNotice, setForgotNotice] = useState('')
 
   const handleSubmit = async (event) => {
     event.preventDefault()
@@ -170,11 +171,24 @@ function LoginPage() {
   const openForgotPassword = () => {
     setForgotEmail(email)
     setForgotSent(false)
+    setForgotNotice('')
     setMode('forgot')
   }
 
   const handleForgotSubmit = async (event) => {
     event.preventDefault()
+
+    // Logins de funcionário usam e-mail fictício <login>@<slug-da-org>.local
+    // (ver src/shared/lib/employeeEmail.js). O TLD .local nunca entrega e-mail
+    // de verdade, então o link de recuperação jamais chegaria -- em vez de
+    // deixar a pessoa esperando um e-mail que não vem, avisa o caminho real:
+    // o responsável da loja redefine pela tela Equipe.
+    if (forgotEmail.trim().toLowerCase().endsWith('.local')) {
+      setForgotNotice('Este é um login de funcionário. Peça ao responsável da loja para redefinir sua senha.')
+      return
+    }
+
+    setForgotNotice('')
     setForgotSubmitting(true)
 
     await supabase.auth.resetPasswordForEmail(forgotEmail, {
@@ -211,10 +225,16 @@ function LoginPage() {
                 type="email"
                 required
                 value={forgotEmail}
-                onChange={(event) => setForgotEmail(event.target.value)}
+                onChange={(event) => { setForgotEmail(event.target.value); setForgotNotice('') }}
                 placeholder="E-mail"
                 className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
               />
+
+              {forgotNotice && (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                  {forgotNotice}
+                </div>
+              )}
 
               <button
                 type="submit"

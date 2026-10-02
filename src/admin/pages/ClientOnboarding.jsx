@@ -7,6 +7,8 @@ import {
 import { supabase } from '../../shared/lib/supabase'
 import WhiteLabelSection from '../../shared/components/WhiteLabelSection'
 import { friendlyError, parsePlanLimitError } from '../../shared/lib/planLimitError'
+import { previewEmployeeEmail } from '../../shared/lib/employeeEmail'
+import CopyButton from '../../shared/components/CopyButton'
 
 /* ── helpers ───────────────────────────────────────────────── */
 
@@ -15,12 +17,6 @@ function genPassword() {
   let p = ''
   for (let i = 0; i < 8; i++) p += chars[Math.floor(Math.random() * chars.length)]
   return p
-}
-
-function normalizeDomain(name) {
-  return (name || '').trim().toLowerCase()
-    .normalize('NFD').replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 }
 
 function formatPhone(value) {
@@ -108,6 +104,7 @@ export default function ClientOnboarding({ org, isNew = false, plans = [], segme
   const [step, setStep] = useState(sessionRestored?.step || 1)
   const [createdOrg, setCreatedOrg] = useState(sessionRestored?.created_org || null)
   const orgId = createdOrg?.id || org?.id
+  const orgSlug = createdOrg?.slug || org?.slug
 
   /* ── Step 1 & 2: store form ── */
   const [storeForm, setStoreForm] = useState(sessionRestored?.store_form || {
@@ -1189,7 +1186,7 @@ Qualquer dúvida estou aqui! 😊`
                         <div className="flex flex-col gap-0.5">
                           <input value={emp.email} onChange={e => updateEmployee(emp.id, 'email', e.target.value)} placeholder="nome ou email@completo.com" type="text" className="text-xs bg-white border border-gray-200 rounded-lg px-2.5 py-2 outline-none focus:ring-2 focus:ring-violet-300" />
                           {emp.email && !emp.email.includes('@') && (
-                            <span className="text-[10px] text-violet-500 font-mono px-1">→ {emp.email}@{normalizeDomain(storeForm.name) || 'empresa'}.com</span>
+                            <span className="text-[10px] text-violet-500 font-mono px-1">→ {previewEmployeeEmail(emp.email, orgSlug)}</span>
                           )}
                         </div>
                         <select value={emp.role} onChange={e => updateEmployee(emp.id, 'role', e.target.value)} className="text-xs bg-white border border-gray-200 rounded-lg px-2 py-2 outline-none focus:ring-2 focus:ring-violet-300">
@@ -1226,6 +1223,9 @@ Qualquer dúvida estou aqui! 😊`
                             : <p className="text-[10px] text-red-600 mt-0.5">{r.errorMsg}</p>
                           }
                         </div>
+                        {r.success && (
+                          <CopyButton text={`Login: ${r.email}\nSenha: ${r.password}`} color="#7c3aed" />
+                        )}
                       </div>
                     ))}
                   </div>

@@ -10,6 +10,7 @@ import { useTenantContext } from '../../../../core/contexts/TenantContext'
 import { useModules } from '../../../../core/hooks/useModules'
 import { PERM_LABELS, ALL_PERM_KEYS, DEFAULT_PERMISSIONS } from '../../../../core/hooks/usePermissions'
 import { parsePlanLimitError } from '../../../../shared/lib/planLimitError'
+import { previewEmployeeEmail } from '../../../../shared/lib/employeeEmail'
 
 /* ── constants ───────────────────────────────────────────── */
 
@@ -348,9 +349,7 @@ export default function Equipe() {
     )
   }
 
-  const emailPreview = empHandle
-    ? `${empHandle.toLowerCase()}@${orgSlug}.local`
-    : `login@${orgSlug}.local`
+  const emailPreview = previewEmployeeEmail(empHandle || 'login', orgSlug)
 
   /* ── render ─────────────────────────────────────────────── */
   return (
