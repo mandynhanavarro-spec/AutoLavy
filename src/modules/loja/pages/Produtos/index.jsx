@@ -6,6 +6,7 @@ import { useTenantContext } from '../../../../core/contexts/TenantContext'
 import { useModules } from '../../../../core/hooks/useModules'
 import { usePermissions } from '../../../../core/hooks/usePermissions'
 import { useMultiPDV } from '../../../../core/hooks/useMultiPDV'
+import { friendlyError, parsePlanLimitError } from '../../../../shared/lib/planLimitError'
 
 /* ── helpers ─────────────────────────────────────────────── */
 
@@ -113,7 +114,7 @@ function QuickAddModal({
         onClose()
       }
     } catch (err) {
-      alert('Erro ao salvar: ' + err.message)
+      alert(friendlyError(err, 'Erro ao salvar: ' + err.message))
     } finally {
       setSaving(false)
     }
@@ -164,26 +165,47 @@ function QuickAddModal({
   async function saveSimples() {
     if (!validLines.length) return
     setSaving(true)
-    try {
-      const rows = validLines.map(l => ({
-        org_id:         orgId,
-        name:           l.name.trim(),
-        price:          parseFloat(l.price),
-        cost_price:     l.cost ? parseFloat(l.cost) : null,
-        stock_quantity: parseInt(l.stock || '0'),
-        min_stock_alert: l.min_stock ? parseInt(l.min_stock) : 5,
-        category_id:    simpleCatId || null,
-        sku:            hasBarcode && l.barcode.trim() ? l.barcode.trim() : null,
-      }))
-      const { error } = await supabase.from('products').insert(rows)
-      if (error) throw error
-      onSaved()
-      onClose()
-    } catch (err) {
-      alert('Erro ao salvar: ' + err.message)
-    } finally {
-      setSaving(false)
+    const rows = validLines.map(l => ({
+      org_id:         orgId,
+      name:           l.name.trim(),
+      price:          parseFloat(l.price),
+      cost_price:     l.cost ? parseFloat(l.cost) : null,
+      stock_quantity: parseInt(l.stock || '0'),
+      min_stock_alert: l.min_stock ? parseInt(l.min_stock) : 5,
+      category_id:    simpleCatId || null,
+      sku:            hasBarcode && l.barcode.trim() ? l.barcode.trim() : null,
+    }))
+    // Insere um de cada vez (em vez de um unico INSERT com varias linhas)
+    // pra que, se algo der errado no meio da lista (limite de plano ou
+    // qualquer outro erro), os itens que ja couberem fiquem salvos em vez
+    // de o lote inteiro ser cancelado -- um INSERT multi-linha e atomico
+    // no Postgres (ou salva tudo, ou nada).
+    let savedCount = 0
+    let limitMsg = null
+    let otherErrorMsg = null
+    for (const row of rows) {
+      const { error } = await supabase.from('products').insert(row)
+      if (!error) { savedCount++; continue }
+      const parsed = parsePlanLimitError(error.message)
+      if (parsed) limitMsg = parsed
+      else otherErrorMsg = error.message
+      break
     }
+    setSaving(false)
+    if (limitMsg) {
+      const faltaram = rows.length - savedCount
+      alert(
+        `${savedCount} de ${rows.length} produto${rows.length === 1 ? '' : 's'} salvo${savedCount === 1 ? '' : 's'}.\n\n` +
+        `${limitMsg}\n\n${faltaram} ficou${faltaram === 1 ? '' : 'ram'} de fora.`
+      )
+    } else if (otherErrorMsg) {
+      alert(savedCount > 0
+        ? `${savedCount} de ${rows.length} produto${rows.length === 1 ? '' : 's'} ${savedCount === 1 ? 'foi salvo' : 'foram salvos'} antes do erro.\n\n` +
+          `Os demais não foram salvos por um erro: ${otherErrorMsg}`
+        : 'Erro ao salvar: ' + otherErrorMsg)
+    }
+    onSaved()
+    if (savedCount === rows.length) onClose()
   }
 
   /* ── ABA KIT ── */
@@ -1476,7 +1498,12 @@ export default function Produtos() {
 
     let productId
     if (modal === 'new') {
-      const { data } = await supabase.from('products').insert({ ...payload, org_id: orgId }).select('id').single()
+      const { data, error } = await supabase.from('products').insert({ ...payload, org_id: orgId }).select('id').single()
+      if (error) {
+        alert(friendlyError(error, 'Erro ao salvar: ' + error.message))
+        setSaving(false)
+        return
+      }
       productId = data?.id
     } else {
       await supabase.from('products').update(payload).eq('id', modal.id).eq('org_id', orgId)
@@ -1543,20 +1570,39 @@ export default function Produtos() {
   /* seed demo products */
   async function seedDemos() {
     setSeeding(true)
-    const { error } = await supabase.from('products').insert(
-      DEMOS.map(d => ({ ...d, org_id: orgId, is_demo: true }))
-    )
-    setSeeding(false)
-    if (error) {
-      if (error.message.includes('is_demo')) {
-        alert(
-          'Coluna is_demo ainda não existe.\n\nRode este SQL no Supabase SQL Editor:\n\n' +
-          'ALTER TABLE public.products\nADD COLUMN IF NOT EXISTS is_demo BOOLEAN DEFAULT FALSE;'
-        )
-      } else {
-        alert('Erro: ' + error.message)
+    const rows = DEMOS.map(d => ({ ...d, org_id: orgId, is_demo: true }))
+    let savedCount = 0
+    let limitMsg = null
+    for (const row of rows) {
+      const { error } = await supabase.from('products').insert(row)
+      if (error) {
+        if (error.message.includes('is_demo')) {
+          setSeeding(false)
+          alert(
+            'Coluna is_demo ainda não existe.\n\nRode este SQL no Supabase SQL Editor:\n\n' +
+            'ALTER TABLE public.products\nADD COLUMN IF NOT EXISTS is_demo BOOLEAN DEFAULT FALSE;'
+          )
+          return
+        }
+        const parsed = parsePlanLimitError(error.message)
+        if (parsed) { limitMsg = parsed; break }
+        setSeeding(false)
+        alert(savedCount > 0
+          ? `${savedCount} de ${rows.length} produtos demo ${savedCount === 1 ? 'foi salvo' : 'foram salvos'} antes do erro.\n\n` +
+            `Os demais não foram salvos por um erro: ${error.message}`
+          : 'Erro: ' + error.message)
+        load()
+        return
       }
-      return
+      savedCount++
+    }
+    setSeeding(false)
+    if (limitMsg) {
+      const faltaram = rows.length - savedCount
+      alert(
+        `${savedCount} de ${rows.length} produtos demo salvos.\n\n` +
+        `${limitMsg}\n\n${faltaram} ficaram de fora.`
+      )
     }
     load()
   }

@@ -4,6 +4,7 @@ import {
   PauseCircle, Pencil, PlayCircle, Plus, RefreshCw, Search, Trash2, X,
 } from 'lucide-react'
 import { supabase } from '../../../shared/lib/supabase'
+import { friendlyError } from '../../../shared/lib/planLimitError'
 
 /* ── constants ─────────────────────────────────────────────── */
 
@@ -467,16 +468,17 @@ const ClientesTab = forwardRef(function ClientesTab(
   async function addOrgRegister() {
     if (!newRegName.trim() || !editingOrganizationId) return
     setSavingReg(true)
-    await supabase.from('cash_registers').insert({
+    const { error } = await supabase.from('cash_registers').insert({
       org_id: editingOrganizationId,
       name: newRegName.trim(),
       description: newRegDesc.trim() || null,
       is_active: true,
     })
+    setSavingReg(false)
+    if (error) { alert(friendlyError(error)); return }
     setNewRegName('')
     setNewRegDesc('')
     await loadOrgRegisters(editingOrganizationId)
-    setSavingReg(false)
   }
 
   async function toggleOrgRegister(regId, isActive) {

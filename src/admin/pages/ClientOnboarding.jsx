@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '../../shared/lib/supabase'
 import WhiteLabelSection from '../../shared/components/WhiteLabelSection'
+import { friendlyError, parsePlanLimitError } from '../../shared/lib/planLimitError'
 
 /* ── helpers ───────────────────────────────────────────────── */
 
@@ -458,12 +459,13 @@ export default function ClientOnboarding({ org, isNew = false, plans = [], segme
   async function addRegister() {
     if (!newRegName.trim() || !orgId) return
     setAddingReg(true)
-    await supabase.from('cash_registers').insert({
+    const { error } = await supabase.from('cash_registers').insert({
       org_id: orgId, name: newRegName.trim(), is_active: true,
     })
+    setAddingReg(false)
+    if (error) { alert(friendlyError(error)); return }
     setNewRegName('')
     await loadRegisters()
-    setAddingReg(false)
   }
 
   async function saveRegisterCategory(regId, categoryId) {
@@ -528,7 +530,7 @@ export default function ClientOnboarding({ org, isNew = false, plans = [], segme
         if (error || data?.error) throw new Error(data?.error || error?.message || 'Erro')
         results.push({ ...emp, email: data?.email || emp.email, userId: data?.userId, success: true })
       } catch (err) {
-        results.push({ ...emp, success: false, errorMsg: err.message })
+        results.push({ ...emp, success: false, errorMsg: friendlyError(err) })
       }
     }
     setTeamResults(results)
@@ -554,17 +556,44 @@ export default function ClientOnboarding({ org, isNew = false, plans = [], segme
     const valid = newProducts.filter(p => p.name.trim() && p.price)
     if (!valid.length || !orgId) return
     setSavingProducts(true)
-    const { data } = await supabase.from('products').insert(
-      valid.map(p => ({
-        org_id:         orgId,
-        name:           p.name.trim(),
-        price:          parseFloat(p.price) || 0,
-        stock_quantity: parseInt(p.stock_quantity || '0'),
-        category_id:    p.category_id || null,
-      }))
-    ).select()
+    const rows = valid.map(p => ({
+      org_id:         orgId,
+      name:           p.name.trim(),
+      price:          parseFloat(p.price) || 0,
+      stock_quantity: parseInt(p.stock_quantity || '0'),
+      category_id:    p.category_id || null,
+    }))
+    // Um de cada vez (nao em lote): se algo der errado no meio da lista
+    // (limite do plano ou qualquer outro erro), salva os que couberem em
+    // vez de cancelar tudo.
+    let savedCount = 0
+    let limitMsg = null
+    let otherErrorMsg = null
+    for (const row of rows) {
+      const { error } = await supabase.from('products').insert(row)
+      if (!error) { savedCount++; continue }
+      const parsed = parsePlanLimitError(error.message)
+      if (parsed) limitMsg = parsed
+      else otherErrorMsg = error.message
+      break
+    }
     setSavingProducts(false)
-    if (data) { setSavedProductCount(prev => prev + data.length); setNewProducts([]) }
+    if (savedCount > 0) {
+      setSavedProductCount(prev => prev + savedCount)
+      setNewProducts(prev => prev.slice(savedCount))
+    }
+    if (limitMsg) {
+      const faltaram = rows.length - savedCount
+      alert(
+        `${savedCount} de ${rows.length} produto${rows.length === 1 ? '' : 's'} salvo${savedCount === 1 ? '' : 's'}.\n\n` +
+        `${limitMsg}\n\n${faltaram} ficou${faltaram === 1 ? '' : 'ram'} de fora.`
+      )
+    } else if (otherErrorMsg) {
+      alert(savedCount > 0
+        ? `${savedCount} de ${rows.length} produto${rows.length === 1 ? '' : 's'} ${savedCount === 1 ? 'foi salvo' : 'foram salvos'} antes do erro.\n\n` +
+          `Os demais não foram salvos por um erro: ${otherErrorMsg}`
+        : 'Erro ao salvar: ' + otherErrorMsg)
+    }
   }
 
   /* ─────────────────────────────────────────────────

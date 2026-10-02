@@ -4,6 +4,7 @@ import { Store, Tag, Users, Check, Plus, X, ArrowRight, CheckCircle2 } from 'luc
 import { supabase } from '../../../../shared/lib/supabase'
 import { useTenantContext } from '../../../../core/contexts/TenantContext'
 import { useModules } from '../../../../core/hooks/useModules'
+import { friendlyError } from '../../../../shared/lib/planLimitError'
 
 const SEGMENT_SUGGESTIONS = {
   geral:       ['Alimentos', 'Bebidas', 'Higiene', 'Limpeza', 'Outros'],
@@ -109,12 +110,26 @@ export default function LojaOnboarding() {
           pendingCategories.map(name => ({ org_id: orgId, name, segment_id: segment }))
         )
       }
-      await supabase.from('products').insert(
-        DEMO_PRODUCTS.map(p => ({ ...p, org_id: orgId, is_demo: true }))
-      )
+      // Insere os demos um a um (nao em lote) pra que, se o plano tiver um
+      // limite de produtos baixo, o onboarding ainda complete com os que
+      // couberem em vez de travar por inteiro.
+      const demoRows = DEMO_PRODUCTS.map(p => ({ ...p, org_id: orgId, is_demo: true }))
+      let savedCount = 0
+      let limitMsg = null
+      for (const row of demoRows) {
+        const { error } = await supabase.from('products').insert(row)
+        if (error) {
+          limitMsg = friendlyError(error, null)
+          break
+        }
+        savedCount++
+      }
       await supabase.from('organizations')
         .update({ onboarding_completed: true })
         .eq('id', orgId)
+      if (limitMsg) {
+        alert(`${savedCount} de ${demoRows.length} produtos de exemplo foram criados.\n\n${limitMsg}`)
+      }
       window.location.assign('/')
     } catch {
       setSaving(false)
@@ -151,7 +166,7 @@ export default function LojaOnboarding() {
         if (error || data?.error) throw new Error(data?.error || error?.message || 'Erro')
         results.push({ ...m, email: data?.email || m.email, success: true })
       } catch (err) {
-        results.push({ ...m, success: false, errorMsg: err.message })
+        results.push({ ...m, success: false, errorMsg: friendlyError(err) })
       }
     }
     setTeamResults(results)

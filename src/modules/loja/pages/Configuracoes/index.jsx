@@ -9,6 +9,7 @@ import { useTenantContext } from '../../../../core/contexts/TenantContext'
 import { useModules } from '../../../../core/hooks/useModules'
 import { PERM_LABELS, ALL_PERM_KEYS, DEFAULT_PERMISSIONS } from '../../../../core/hooks/usePermissions'
 import WhiteLabelSection from '../../../../shared/components/WhiteLabelSection'
+import { friendlyError } from '../../../../shared/lib/planLimitError'
 
 /* ── sub-components ──────────────────────────────────────── */
 
@@ -135,7 +136,7 @@ export default function Configuracoes() {
     }).select()
     console.log('[addRegister] data =', data, '| error =', error)
     setAddRegSaving(false)
-    if (error) { setAddRegError(error.message); return }
+    if (error) { setAddRegError(friendlyError(error)); return }
     setAddRegOpen(false)
     setAddRegName('')
     setAddRegDesc('')

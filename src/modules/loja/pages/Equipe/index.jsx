@@ -9,6 +9,7 @@ import { supabase } from '../../../../shared/lib/supabase'
 import { useTenantContext } from '../../../../core/contexts/TenantContext'
 import { useModules } from '../../../../core/hooks/useModules'
 import { PERM_LABELS, ALL_PERM_KEYS, DEFAULT_PERMISSIONS } from '../../../../core/hooks/usePermissions'
+import { parsePlanLimitError } from '../../../../shared/lib/planLimitError'
 
 /* ── constants ───────────────────────────────────────────── */
 
@@ -39,6 +40,12 @@ function genPassword() {
 
 function parseInvokeError(data, error) {
   const raw = data?.error || error?.message || 'Erro desconhecido.'
+  // Erro de limite de plano (trigger check_plan_limit no banco) -- a edge
+  // function create-employee repassa a mensagem crua do Postgres, as vezes
+  // com um prefixo ("Erro ao criar perfil: ..."), por isso a busca e por
+  // padrao, nao por igualdade exata.
+  const limitMsg = parsePlanLimitError(raw)
+  if (limitMsg) return limitMsg
   if (raw.includes('404') || raw.includes('not found') || raw.toLowerCase().includes('edge function')) {
     return 'Edge Function não encontrada. Faça o deploy no Supabase antes de usar esta função.'
   }
