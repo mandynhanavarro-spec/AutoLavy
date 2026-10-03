@@ -7,7 +7,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'prompt',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
+      includeAssets: ['favicon-16x16.png', 'favicon-32x32.png', 'apple-touch-icon.png'],
       workbox: {
         skipWaiting: true,
         clientsClaim: true,
@@ -27,20 +27,30 @@ export default defineConfig({
         ],
       },
       manifest: {
-        name: 'Gestão Loja Express',
-        short_name: 'LojaExpress',
+        name: 'Meu Caixa',
+        short_name: 'Meu Caixa',
         description: 'Sistema de Gestão Simplificada para Pequenos Negócios',
-        theme_color: '#3b82f6',
+        lang: 'pt-BR',
+        theme_color: '#0891b2',
+        background_color: '#ffffff',
         icons: [
           {
             src: 'pwa-192x192.png',
             sizes: '192x192',
-            type: 'image/png'
+            type: 'image/png',
+            purpose: 'any'
           },
           {
             src: 'pwa-512x512.png',
             sizes: '512x512',
-            type: 'image/png'
+            type: 'image/png',
+            purpose: 'any'
+          },
+          {
+            src: 'pwa-512x512-maskable.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable'
           }
         ]
       }
