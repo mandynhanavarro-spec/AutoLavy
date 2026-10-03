@@ -1,4 +1,4 @@
-import { forwardRef, useImperativeHandle, useMemo, useState } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useState } from 'react'
 import {
   CheckCircle2, Clock, Copy, ExternalLink, LogIn, Monitor,
   PauseCircle, Pencil, PlayCircle, Plus, RefreshCw, Search, Trash2, X,
@@ -158,6 +158,23 @@ const ClientesTab = forwardRef(function ClientesTab(
   const subscriptionMap = useMemo(() =>
     subscriptions.reduce((a, s) => ({ ...a, [s.organization_id]: s }), {}),
   [subscriptions])
+
+  /* aceite dos Termos por cliente (versao + data), exibido na tabela */
+  const [termsAcceptanceMap, setTermsAcceptanceMap] = useState({})
+  useEffect(() => {
+    const orgIds = organizationRows.map(o => o.id)
+    if (orgIds.length === 0) { setTermsAcceptanceMap({}); return }
+    supabase
+      .from('terms_acceptances')
+      .select('org_id, terms_version, privacy_version, accepted_at')
+      .in('org_id', orgIds)
+      .order('accepted_at', { ascending: false })
+      .then(({ data }) => {
+        const map = {}
+        ;(data || []).forEach(row => { if (!map[row.org_id]) map[row.org_id] = row })
+        setTermsAcceptanceMap(map)
+      })
+  }, [organizationRows])
 
   const filteredCustomers = useMemo(() =>
     organizationRows.filter(org => {
@@ -551,6 +568,13 @@ const ClientesTab = forwardRef(function ClientesTab(
                               <span className="inline-block text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full mt-0.5">
                                 Incompleto
                               </span>
+                            )}
+                            {termsAcceptanceMap[c.id] ? (
+                              <span className="block text-[10px] text-gray-400 mt-0.5">
+                                Termos v{termsAcceptanceMap[c.id].terms_version} · {new Date(termsAcceptanceMap[c.id].accepted_at).toLocaleDateString('pt-BR')}
+                              </span>
+                            ) : (
+                              <span className="block text-[10px] text-amber-600 mt-0.5">Termos: não aceito</span>
                             )}
                           </div>
                         </div>

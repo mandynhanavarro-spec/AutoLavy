@@ -8,6 +8,8 @@ import SuspensaoPage from './core/pages/Suspenso'
 import { supabase } from './shared/lib/supabase'
 import { useServiceWorker } from './hooks/useServiceWorker'
 import { useOrgBranding } from './core/hooks/useOrgBranding'
+import { TermosPage, PrivacidadePage } from './core/pages/Legal'
+import { TERMS_VERSION, PRIVACY_VERSION } from './shared/lib/legal'
 
 // ── Loja vertical (lazy) ──────────────────────────────────────
 const LojaLayout        = lazy(() => import('./modules/loja/components/Layout'))
@@ -253,6 +255,12 @@ function LoginPage() {
           >
             Voltar ao login
           </button>
+
+          <div className="flex items-center justify-center gap-2 text-xs text-slate-400 pt-2">
+            <a href="/termos" target="_blank" rel="noopener noreferrer" className="underline hover:text-slate-600">Termos de Uso</a>
+            <span>•</span>
+            <a href="/privacidade" target="_blank" rel="noopener noreferrer" className="underline hover:text-slate-600">Política de Privacidade</a>
+          </div>
         </div>
       </div>
     )
@@ -313,6 +321,12 @@ function LoginPage() {
             Esqueci minha senha
           </button>
         </form>
+
+        <div className="flex items-center justify-center gap-2 text-xs text-slate-400 pt-2">
+          <a href="/termos" target="_blank" rel="noopener noreferrer" className="underline hover:text-slate-600">Termos de Uso</a>
+          <span>•</span>
+          <a href="/privacidade" target="_blank" rel="noopener noreferrer" className="underline hover:text-slate-600">Política de Privacidade</a>
+        </div>
       </div>
     </div>
   )
@@ -359,6 +373,78 @@ function NoOrganizationPage() {
   )
 }
 
+// ── Modal bloqueante de nova versao dos Termos/Privacidade ────
+// So aparece pro dono/admin da loja (nunca pra operador/gerente/
+// superadmin) quando o aceite registrado em terms_acceptances nao
+// cobre a versao vigente (TERMS_VERSION/PRIVACY_VERSION).
+function TermsUpdateModal({ userId, orgId, onAccepted, isFirstAcceptance }) {
+  const [checked, setChecked] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleAccept = async () => {
+    setSaving(true)
+    setError('')
+    const { error: insertError } = await supabase.from('terms_acceptances').insert({
+      user_id: userId,
+      org_id: orgId,
+      terms_version: TERMS_VERSION,
+      privacy_version: PRIVACY_VERSION,
+      user_agent: navigator.userAgent,
+    })
+    setSaving(false)
+    if (insertError) {
+      setError('Nao foi possivel registrar o aceite. Tente novamente.')
+      return
+    }
+    onAccepted()
+  }
+
+  return (
+    <div className="fixed inset-0 z-[9997] bg-black/50 flex items-center justify-center p-4">
+      <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl border border-slate-100 space-y-4">
+        <h2 className="text-xl font-black text-slate-900">
+          {isFirstAcceptance ? 'Para começar, leia e aceite os Termos' : 'Atualizamos nossos Termos'}
+        </h2>
+        <p className="text-sm text-slate-600">
+          {isFirstAcceptance
+            ? 'Para começar a usar o Meu Caixa, leia e aceite os Termos de Uso e a Política de Privacidade.'
+            : 'Revisamos os Termos de Uso e a Política de Privacidade do Meu Caixa. Para continuar usando o sistema, leia e aceite a nova versão.'}
+        </p>
+        <div className="flex gap-2 text-sm">
+          <a href="/termos" target="_blank" rel="noopener noreferrer" className="underline text-blue-600">
+            Ver Termos de Uso
+          </a>
+          <span className="text-slate-300">•</span>
+          <a href="/privacidade" target="_blank" rel="noopener noreferrer" className="underline text-blue-600">
+            Ver Politica de Privacidade
+          </a>
+        </div>
+        <label className="flex items-start gap-2 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            checked={checked}
+            onChange={(e) => setChecked(e.target.checked)}
+            className="mt-0.5"
+          />
+          {isFirstAcceptance
+            ? 'Li e aceito os Termos de Uso e a Política de Privacidade'
+            : 'Li e aceito os novos Termos de Uso e a Política de Privacidade'}
+        </label>
+        {error && <p className="text-sm text-rose-600">{error}</p>}
+        <button
+          type="button"
+          disabled={!checked || saving}
+          onClick={handleAccept}
+          className="w-full rounded-2xl bg-slate-900 px-4 py-3 font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {saving ? 'Salvando...' : 'Aceitar e continuar'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ── App ───────────────────────────────────────────────────────
 export default function App() {
   const { needRefresh, updateServiceWorker } = useServiceWorker()
@@ -378,6 +464,7 @@ export default function App() {
   const [tenant, setTenant] = useState(null)
   const [modules, setModules] = useState([])
   const [loading, setLoading] = useState(true)
+  const [latestTermsAcceptance, setLatestTermsAcceptance] = useState(null)
   const currentUserIdRef = useRef(null)
 
   useEffect(() => {
@@ -448,11 +535,23 @@ export default function App() {
         }
       }
 
+      let loadedLatestAcceptance = null
+      if (loadedProfile?.role === 'admin') {
+        const { data: acceptanceRows } = await supabase
+          .from('terms_acceptances')
+          .select('terms_version, privacy_version')
+          .eq('user_id', currentSession.user.id)
+          .order('accepted_at', { ascending: false })
+          .limit(1)
+        loadedLatestAcceptance = acceptanceRows?.[0] || null
+      }
+
       if (!mounted) return
       currentUserIdRef.current = currentSession?.user?.id || null
       setProfile(loadedProfile || null)
       setTenant(loadedTenant)
       setModules(loadedModules)
+      setLatestTermsAcceptance(loadedLatestAcceptance)
       setLoading(false)
     }
 
@@ -494,6 +593,13 @@ export default function App() {
       subscription.unsubscribe()
     }
   }, [])
+
+  // ── Paginas publicas de Termos/Privacidade: acessiveis em qualquer
+  // estado de sessao (logado ou nao), por isso o short-circuit vem
+  // antes de qualquer branch de auth/tenant.
+  const publicPath = window.location.pathname
+  if (publicPath === '/termos') return <TermosPage />
+  if (publicPath === '/privacidade') return <PrivacidadePage />
 
   if (loading) {
     return <div className="h-screen flex items-center justify-center">Carregando...</div>
@@ -575,8 +681,23 @@ export default function App() {
   const VerticalLayout = vertical?.Layout
   const verticalPages  = vertical?.pages ?? []
 
+  // So dono/admin precisa re-aceitar; operador/gerente nunca veem isto.
+  const needsTermsAcceptance =
+    session && profile?.role === 'admin' && !supportMode &&
+    (!latestTermsAcceptance ||
+      latestTermsAcceptance.terms_version !== TERMS_VERSION ||
+      latestTermsAcceptance.privacy_version !== PRIVACY_VERSION)
+
   return (
     <TenantProvider value={{ tenant, modules, profile, loading: false }}>
+      {needsTermsAcceptance && (
+        <TermsUpdateModal
+          userId={session.user.id}
+          orgId={tenant?.id}
+          isFirstAcceptance={!latestTermsAcceptance}
+          onAccepted={() => setLatestTermsAcceptance({ terms_version: TERMS_VERSION, privacy_version: PRIVACY_VERSION })}
+        />
+      )}
       {supportMode && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9999,

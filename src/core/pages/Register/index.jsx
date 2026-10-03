@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { Building2, Eye, EyeOff, Lock, MapPin, Palette, Phone } from 'lucide-react'
 import { supabase } from '../../../shared/lib/supabase'
 import { isPasswordPwned } from '../../../shared/lib/checkPwnedPassword'
+import { TERMS_VERSION, PRIVACY_VERSION } from '../../../shared/lib/legal'
 
 const inputCls =
   'w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500'
@@ -29,6 +30,7 @@ export default function Register() {
   const [submitError, setSubmitError] = useState('')
   const [showPw, setShowPw] = useState(false)
   const [checkingPw, setCheckingPw] = useState(false)
+  const [termsAccepted, setTermsAccepted] = useState(false)
 
   const [form, setForm] = useState({
     fullName: '',
@@ -81,6 +83,7 @@ export default function Register() {
     e.preventDefault()
     if (!form.email.trim()) { setSubmitError('E-mail de acesso é obrigatório.'); return }
     if (form.password.length < 6) { setSubmitError('A senha deve ter pelo menos 6 caracteres.'); return }
+    if (!termsAccepted) { setSubmitError('É necessário aceitar os Termos de Uso e a Política de Privacidade.'); return }
 
     setSubmitError('')
 
@@ -144,6 +147,9 @@ export default function Register() {
         p_phone: form.phone.trim() || null,
         p_address: form.address.trim() || null,
         p_theme_color: form.themeColor,
+        p_terms_version: TERMS_VERSION,
+        p_privacy_version: PRIVACY_VERSION,
+        p_user_agent: navigator.userAgent,
       })
 
       if (rpcError) throw rpcError
@@ -303,6 +309,23 @@ export default function Register() {
             </div>
           </Field>
 
+          <label className="flex items-start gap-2 text-sm text-slate-600">
+            <input
+              type="checkbox"
+              checked={termsAccepted}
+              onChange={(e) => setTermsAccepted(e.target.checked)}
+              className="mt-0.5"
+            />
+            Li e aceito os{' '}
+            <a href="/termos" target="_blank" rel="noopener noreferrer" className="underline text-blue-600">
+              Termos de Uso
+            </a>{' '}
+            e a{' '}
+            <a href="/privacidade" target="_blank" rel="noopener noreferrer" className="underline text-blue-600">
+              Política de Privacidade
+            </a>
+          </label>
+
           {submitError && (
             <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
               {submitError}
@@ -311,7 +334,7 @@ export default function Register() {
 
           <button
             type="submit"
-            disabled={step === 'submitting' || checkingPw}
+            disabled={step === 'submitting' || checkingPw || !termsAccepted}
             className="w-full rounded-2xl bg-slate-900 px-4 py-3.5 font-bold text-white text-sm disabled:cursor-not-allowed disabled:opacity-60"
           >
             {checkingPw ? 'Verificando...' : step === 'submitting' ? 'Criando sua loja...' : 'Criar loja e acessar painel'}

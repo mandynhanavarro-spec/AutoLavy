@@ -307,3 +307,73 @@ export default function MinhaPagina() {
   removidos ao final da tarefa.
 - Nenhuma migration é aplicada antes de aprovação do plano; nenhum commit/push
   sem sinal explícito.
+- Migration que muda assinatura ou comportamento de função chamada pelo
+  frontend só pode ser aplicada imediatamente antes do push do frontend
+  correspondente, ou precisa ser retrocompatível. Isso já quebrou o cadastro
+  em produção duas vezes.
+
+---
+
+## 12. Regras de desenvolvimento e deploy
+
+Cada regra existe porque o problema já aconteceu em produção ou quase.
+
+### 12.1 Banco e deploy
+- Migration que muda assinatura, parâmetros obrigatórios ou comportamento de
+  função/tabela usada pelo frontend só é aplicada imediatamente antes do push
+  do frontend correspondente — ou precisa ser retrocompatível com o site no ar.
+  (O cadastro por convite quebrou em produção duas vezes por isso.)
+- Toda alteração de banco vira migration rastreada (apply_migration + arquivo
+  em supabase/migrations/). Nada de SQL Editor manual.
+- Edge functions seguem a mesma regra de aprovação do frontend: nenhum deploy
+  sem ok explícito, mesmo quando o deploy for necessário para testar — nesse
+  caso, pedir o ok antes.
+- Funções/edge functions temporárias criadas para teste (sondas) são removidas
+  ao final da tarefa. Se não for possível remover, avisar no relatório.
+- O relatório final sempre lista: migrations aplicadas em produção, edge
+  functions publicadas, arquivos não commitados e o que está no ar vs. local.
+
+### 12.2 Segurança
+- Função SECURITY DEFINER sempre com SET search_path fixo e grants explícitos:
+  REVOKE de PUBLIC, anon e authenticated, depois GRANT só para quem precisa.
+- Função nunca confia em user_id/org_id recebido por parâmetro para decidir
+  permissão: usar auth.uid() e get_my_org_id().
+- Regras de negócio que protegem receita ou dados (limites de plano, aceite de
+  termos, isolamento entre lojas) são aplicadas NO BANCO (trigger, função,
+  RLS). O frontend só traduz o erro.
+
+### 12.3 Mensagens e marca
+- O cliente nunca vê erro cru do Postgres nem código técnico. Todo erro
+  conhecido é traduzido em linguagem simples (ver planLimitError.js).
+- O cliente nunca vê "AutoLavy" nem nomes internos (loja/servico/beleza). Usar
+  o mapa central de marca por vertical. Telas compartilhadas entre verticais
+  (login, bloqueio, suspensão) precisam escolher a marca pelo product_id.
+- Login de funcionário: formato único <nome>@<slug-da-org>.local, gerado só
+  pela edge function create-employee; a tela usa src/shared/lib/employeeEmail.js
+  e nunca monta o e-mail por conta própria.
+
+### 12.4 Dados
+- Produto já vendido não é excluído: arquivar (archived_at). sale_items não
+  tem CASCADE de propósito.
+- Não apagar tabelas filhas manualmente antes do pai quando já existe CASCADE
+  (risco de perda se o DELETE do pai falhar).
+- Toda contagem de uso (limites, barras do Meu Plano, SuperAdmin) usa a mesma
+  regra do trigger: arquivados não contam. Uma regra só, em um lugar só.
+- Inserções em lote que podem esbarrar em limite são feitas uma a uma e
+  informam quantos itens foram salvos e quantos ficaram de fora.
+
+### 12.5 Testes
+- Toda mudança no cadastro de loja é testada nos DOIS caminhos:
+  "Sem Implementação" (convite /registrar) e "Com Implementação"
+  (ClientOnboarding). Se não for possível testar um deles (ex.: exige login de
+  superadmin), dizer isso no relatório e listar o que a Mandy deve testar.
+- Teste que altera configuração compartilhada (ex.: limite de um plano) mostra
+  o valor antes e depois e restaura ao final. Nunca deixar valor temporário.
+- Dados de teste criados em produção são listados e removidos ao final, com
+  confirmação de zero resíduos.
+- Teste "estrutural" (lendo código) não substitui teste na tela quando o
+  comportamento depende de interface; nesse caso, dizer qual teste manual falta.
+
+### 12.6 Ambiente
+- Windows não diferencia maiúsculas de minúsculas em pastas: docs/Legal e
+  docs/legal são a mesma pasta. Conferir caminhos antes de mover arquivos.
