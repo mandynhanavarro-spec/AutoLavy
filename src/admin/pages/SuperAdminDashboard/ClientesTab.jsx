@@ -5,6 +5,8 @@ import {
 } from 'lucide-react'
 import { supabase } from '../../../shared/lib/supabase'
 import { friendlyError } from '../../../shared/lib/planLimitError'
+import { billingStatusMeta } from '../../../shared/lib/billingStatus'
+import { getVerticalBrand } from '../../../shared/lib/verticalBrand'
 
 /* ── constants ─────────────────────────────────────────────── */
 
@@ -25,7 +27,7 @@ const initialClientForm = {
   store_name: '', responsible_name: '', company_document: '',
   contact_email: '', whatsapp: '', address: '', notes: '',
   login_email: '', initial_password: '', product_id: 'loja', plan_id: '',
-  segments: [], categories: [],
+  segments: [], categories: [], trial_ends_at: '', due_date: '',
 }
 
 const STATUS_CLASSES = {
@@ -54,10 +56,12 @@ const SEGMENT_BADGES = {
   eletronicos: { label: 'Eletrônicos', cls: 'bg-blue-100 text-blue-700'     },
 }
 
-const VERTICAL_BADGES = {
-  loja:    { label: 'Caixa',   cls: 'bg-violet-100 text-violet-700' },
-  servico: { label: 'Serviço', cls: 'bg-amber-100  text-amber-700'  },
-  beleza:  { label: 'Studio',  cls: 'bg-pink-100   text-pink-700'   },
+// Cor e so pra badge do admin; o nome exibido vem sempre do mapa
+// central de marca (getVerticalBrand), nunca redigitado aqui.
+const VERTICAL_BADGE_COLORS = {
+  loja:    'bg-violet-100 text-violet-700',
+  servico: 'bg-amber-100  text-amber-700',
+  beleza:  'bg-pink-100   text-pink-700',
 }
 
 const inp = 'w-full p-3 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-violet-400 text-sm'
@@ -102,10 +106,11 @@ function SegmentBadge({ value, label, colorIdx }) {
 }
 
 function VerticalBadge({ value }) {
-  const v = VERTICAL_BADGES[value] || { label: value || '—', cls: 'bg-gray-100 text-gray-600' }
+  const cls = VERTICAL_BADGE_COLORS[value] || 'bg-gray-100 text-gray-600'
+  const label = value ? getVerticalBrand(value).name : '—'
   return (
-    <span className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-bold ${v.cls}`}>
-      {v.label}
+    <span className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-bold ${cls}`}>
+      {label}
     </span>
   )
 }
@@ -175,6 +180,81 @@ const ClientesTab = forwardRef(function ClientesTab(
         setTermsAcceptanceMap(map)
       })
   }, [organizationRows])
+
+  /* situacao de cobranca por cliente (teste/em_dia/vence_em_breve/
+     atrasado/suspenso/cancelado) -- SEMPRE via get_all_billing_status,
+     nunca recalculada aqui (mesma funcao usada pelo App.jsx e Meu Plano) */
+  const [billingStatusMap, setBillingStatusMap] = useState({})
+  const [billingStatusLoaded, setBillingStatusLoaded] = useState(false)
+  async function loadBillingStatus() {
+    const { data } = await supabase.rpc('get_all_billing_status')
+    const map = {}
+    ;(data || []).forEach(row => { map[row.org_id] = row })
+    setBillingStatusMap(map)
+    setBillingStatusLoaded(true)
+  }
+  useEffect(() => { loadBillingStatus() }, [])
+
+  /* avisos de "Ja paguei" pendentes */
+  const [pendingNotices, setPendingNotices] = useState([])
+  async function loadPendingNotices() {
+    const { data } = await supabase
+      .from('payment_notices')
+      .select('*')
+      .eq('status', 'pendente')
+      .order('created_at', { ascending: true })
+    setPendingNotices(data || [])
+  }
+  useEffect(() => { loadPendingNotices() }, [])
+
+  const [noticeActionTarget, setNoticeActionTarget] = useState(null) // { notice, mode: 'reject' }
+  const [rejectReason, setRejectReason] = useState('')
+
+  async function handleConfirmNotice(notice) {
+    const key = `confirm-notice-${notice.id}`; startAction(key)
+    try {
+      const { error } = await supabase.rpc('confirm_payment_notice', { p_notice_id: notice.id })
+      if (error) throw new Error(getErrorMessage(error, 'Erro ao confirmar pagamento.'))
+      await Promise.all([loadPendingNotices(), loadBillingStatus(), loadAdminData()])
+      showSuccess('Pagamento confirmado.')
+    } catch (err) { showError(err, 'Erro ao confirmar pagamento.') }
+    finally { finishAction() }
+  }
+
+  async function handleRejectNotice() {
+    if (!noticeActionTarget || !rejectReason.trim()) return
+    const key = `reject-notice-${noticeActionTarget.id}`; startAction(key)
+    try {
+      const { error } = await supabase.rpc('reject_payment_notice', {
+        p_notice_id: noticeActionTarget.id, p_reason: rejectReason.trim(),
+      })
+      if (error) throw new Error(getErrorMessage(error, 'Erro ao recusar aviso.'))
+      await loadPendingNotices()
+      showSuccess('Aviso recusado.')
+      setNoticeActionTarget(null); setRejectReason('')
+    } catch (err) { showError(err, 'Erro ao recusar aviso.') }
+    finally { finishAction() }
+  }
+
+  /* reativacao exige novo vencimento (senao a loja volta a ficar
+     suspensa no mesmo instante pelo calculo por data) */
+  const [reactivateTarget, setReactivateTarget] = useState(null)
+  const [reactivateDueDate, setReactivateDueDate] = useState('')
+
+  async function confirmReactivate() {
+    if (!reactivateTarget || !reactivateDueDate) return
+    const key = `reactivate-${reactivateTarget.id}`; startAction(key)
+    try {
+      const { error } = await supabase.rpc('set_subscription_status', {
+        p_org_id: reactivateTarget.id, p_status: 'ativa', p_new_due_date: reactivateDueDate,
+      })
+      if (error) throw new Error(getErrorMessage(error, 'Erro ao reativar.'))
+      await Promise.all([loadAdminData(), loadBillingStatus()])
+      showSuccess('Cliente reativado.')
+      setReactivateTarget(null); setReactivateDueDate('')
+    } catch (err) { showError(err, 'Erro ao reativar.') }
+    finally { finishAction() }
+  }
 
   const filteredCustomers = useMemo(() =>
     organizationRows.filter(org => {
@@ -249,6 +329,8 @@ const ClientesTab = forwardRef(function ClientesTab(
       initial_password: '', product_id: org.product_id || 'loja',
       plan_id: sub?.plan_id || org.plan_id || getPlanIdBySlug(org.plan_type || 'basic'),
       segments: orgSegmentsMap[org.id] || [],
+      trial_ends_at: sub?.trial_ends_at ? sub.trial_ends_at.slice(0, 10) : '',
+      due_date: sub?.due_date || '',
     })
     setShowClientModal(true)
     loadOrgRegisters(org.id)
@@ -328,24 +410,22 @@ const ClientesTab = forwardRef(function ClientesTab(
 
   const handleToggleCustomerStatus = async customer => {
     const suspending = customer.customer_status !== 'suspenso'
-    if (!window.confirm(`${suspending ? 'Suspender' : 'Reativar'} "${customer.name}"?`)) return
+    if (!suspending) {
+      // Reativar exige informar o novo vencimento -- abre modal em vez
+      // de aplicar direto (ver set_subscription_status no banco).
+      setReactivateDueDate('')
+      setReactivateTarget(customer)
+      return
+    }
+    if (!window.confirm(`Suspender "${customer.name}"?`)) return
     const key = `toggle-customer-${customer.id}`; startAction(key)
     try {
-      const { error: oErr } = await supabase.from('organizations').update({
-        customer_status: suspending ? 'suspenso' : 'ativo',
-        access_status: suspending ? 'bloqueado' : 'ativo',
-        is_active: !suspending,
-        suspended_at: suspending ? new Date().toISOString() : null,
-      }).eq('id', customer.id)
-      if (oErr) throw new Error(getErrorMessage(oErr, 'Erro ao atualizar cliente.'))
-      const sub = subscriptions.find(s => s.organization_id === customer.id)
-      if (sub?.id) {
-        const { error: sErr } = await supabase.from('saas_subscriptions')
-          .update({ status: suspending ? 'suspensa' : 'ativa' }).eq('id', sub.id)
-        if (sErr) throw new Error(getErrorMessage(sErr, 'Erro ao atualizar assinatura.'))
-      }
-      await loadAdminData()
-      showSuccess(`Cliente ${suspending ? 'suspenso' : 'reativado'}.`)
+      const { error } = await supabase.rpc('set_subscription_status', {
+        p_org_id: customer.id, p_status: 'suspensa',
+      })
+      if (error) throw new Error(getErrorMessage(error, 'Erro ao suspender cliente.'))
+      await Promise.all([loadAdminData(), loadBillingStatus()])
+      showSuccess('Cliente suspenso.')
     } catch (err) { showError(err, 'Erro ao alterar status.') }
     finally { finishAction() }
   }
@@ -397,12 +477,14 @@ const ClientesTab = forwardRef(function ClientesTab(
       organization_id: editingOrganizationId, plan_id: clientForm.plan_id || null,
       billing_amount: Number(selectedPlan?.price || 0),
       status: sub?.status || 'ativa', payment_status: sub?.payment_status || 'pendente',
-      due_date: sub?.due_date || null,
+      due_date: clientForm.due_date || null,
+      trial_ends_at: clientForm.trial_ends_at ? new Date(`${clientForm.trial_ends_at}T23:59:59`).toISOString() : null,
     }
     if (sub?.id) {
       const { error: sErr } = await supabase.from('saas_subscriptions').update({
         plan_id: subPayload.plan_id, billing_amount: subPayload.billing_amount,
         status: subPayload.status, payment_status: subPayload.payment_status, due_date: subPayload.due_date,
+        trial_ends_at: subPayload.trial_ends_at,
       }).eq('id', sub.id)
       if (sErr) throw new Error(getErrorMessage(sErr, 'Erro ao atualizar assinatura.'))
     } else {
@@ -438,7 +520,7 @@ const ClientesTab = forwardRef(function ClientesTab(
     e.preventDefault(); startAction('submit-client')
     try {
       if (clientModalMode === 'edit-active') {
-        await handleUpdateOrganization(); await loadAdminData()
+        await handleUpdateOrganization(); await loadAdminData(); await loadBillingStatus()
         closeClientModal(); showSuccess('Cliente atualizado.')
       } else if (clientModalMode === 'edit-invite') {
         const inv = invites.find(i => i.id === editingInviteId)
@@ -541,12 +623,50 @@ const ClientesTab = forwardRef(function ClientesTab(
             </div>
           </div>
 
+          {pendingNotices.length > 0 && (
+            <div className="bg-white rounded-2xl border border-amber-200 shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-amber-100 bg-amber-50">
+                <h3 className="font-black text-amber-900 text-sm">Avisos de Pagamento Pendentes</h3>
+                <p className="text-xs text-amber-700 mt-0.5">Confirme ou recuse os avisos de "Já paguei" enviados pelos clientes.</p>
+              </div>
+              <div className="divide-y divide-gray-50">
+                {pendingNotices.map(n => {
+                  const org = organizationRows.find(o => o.id === n.org_id)
+                  return (
+                    <div key={n.id} className="px-5 py-3.5 flex items-center justify-between gap-3 flex-wrap">
+                      <div>
+                        <p className="font-bold text-gray-900 text-sm">{org?.name || 'Cliente removido'}</p>
+                        <p className="text-xs text-gray-400">
+                          {new Date(n.created_at).toLocaleString('pt-BR')}
+                          {n.amount != null && ` · R$ ${Number(n.amount).toFixed(2)}`}
+                          {n.note && ` · ${n.note}`}
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button type="button" disabled={isActionRunning(`confirm-notice-${n.id}`)}
+                          onClick={() => handleConfirmNotice(n)}
+                          className="rounded-xl bg-emerald-600 hover:bg-emerald-700 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-60 transition-colors">
+                          {isActionRunning(`confirm-notice-${n.id}`) ? '...' : 'Confirmar'}
+                        </button>
+                        <button type="button"
+                          onClick={() => { setNoticeActionTarget(n); setRejectReason('') }}
+                          className="rounded-xl bg-white border border-rose-200 px-3 py-1.5 text-xs font-bold text-rose-600 hover:bg-rose-50 transition-colors">
+                          Recusar
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full min-w-[800px]">
                 <thead style={{ background: '#f8f7ff' }}>
                   <tr className="text-left text-[10px] uppercase tracking-widest text-gray-400 font-black">
-                    {['Status','Empresa','Responsável','Vertical','Segmento','Plano','Pagamento','Ações'].map(h => (
+                    {['Status','Empresa','Responsável','Vertical','Segmento','Plano','Situação','Ações'].map(h => (
                       <th key={h} className="px-3 py-3">{h}</th>
                     ))}
                   </tr>
@@ -602,8 +722,24 @@ const ClientesTab = forwardRef(function ClientesTab(
                       <td className="px-3 py-3">
                         <span className="text-[10px] font-bold text-violet-600 bg-violet-50 px-2 py-0.5 rounded-lg">{c.planName}</span>
                       </td>
-                      {/* Pagamento */}
-                      <td className="px-3 py-3"><StatusBadge value={c.paymentStatus} /></td>
+                      {/* Situação (de public.get_billing_status, nunca recalculada aqui) */}
+                      <td className="px-3 py-3">
+                        {billingStatusLoaded && billingStatusMap[c.id] ? (
+                          <div className="space-y-0.5">
+                            {(() => {
+                              const meta = billingStatusMeta(billingStatusMap[c.id].situacao)
+                              return <span className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-bold ${meta.cls}`}>{meta.label}</span>
+                            })()}
+                            {billingStatusMap[c.id].due_date && (
+                              <span className="block text-[10px] text-gray-400">
+                                Vence {new Date(billingStatusMap[c.id].due_date + 'T00:00:00').toLocaleDateString('pt-BR')}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-gray-300 text-xs">...</span>
+                        )}
+                      </td>
                       {/* Ações */}
                       <td className="px-3 py-3">
                         <div className="flex items-center gap-1.5">
@@ -888,6 +1024,24 @@ const ClientesTab = forwardRef(function ClientesTab(
                   </select>
                 </div>
 
+                {/* Vencimento e periodo de teste -- so fazem sentido depois que a assinatura ja existe */}
+                {clientModalMode === 'edit-active' && (
+                  <div className="sm:col-span-2 grid sm:grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-gray-400 uppercase">Próximo vencimento</label>
+                      <input type="date" className={inp} value={clientForm.due_date}
+                        onChange={e => setClientForm({ ...clientForm, due_date: e.target.value })} />
+                      <p className="text-[11px] text-gray-400">Se ficar em branco e não houver período de teste, a situação aparece como "Sem vencimento".</p>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-gray-400 uppercase">Período de teste até (opcional)</label>
+                      <input type="date" className={inp} value={clientForm.trial_ends_at}
+                        onChange={e => setClientForm({ ...clientForm, trial_ends_at: e.target.value })} />
+                      <p className="text-[11px] text-gray-400">Enquanto não vencer, a situação aparece como "Período de teste" e o acesso nunca é bloqueado.</p>
+                    </div>
+                  </div>
+                )}
+
                 {/* Categorias — modo criação apenas, opcional */}
                 {clientModalMode === 'create' && (() => {
                   const segKey = clientForm.segments[0] || (clientForm.product_id === 'loja' ? 'geral' : null)
@@ -1131,6 +1285,61 @@ const ClientesTab = forwardRef(function ClientesTab(
               <button type="button" disabled={!deletePassword || deleteLoading} onClick={handleDeleteOrganization}
                 className="flex-1 py-3 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm disabled:opacity-50 transition-colors">
                 {deleteLoading ? 'Excluindo...' : 'Confirmar exclusão'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* reativar: exige novo vencimento */}
+      {reactivateTarget && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-sm rounded-3xl p-6 space-y-4 shadow-2xl">
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-black text-gray-900">Reativar cliente</h3>
+              <button onClick={() => setReactivateTarget(null)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+            </div>
+            <p className="text-sm text-gray-500">
+              Informe o novo vencimento de <strong>{reactivateTarget.name}</strong>. Sem isso, a loja voltaria a ficar suspensa imediatamente.
+            </p>
+            <input type="date" value={reactivateDueDate} onChange={e => setReactivateDueDate(e.target.value)}
+              className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-violet-400" />
+            <div className="flex gap-3">
+              <button type="button" onClick={() => setReactivateTarget(null)}
+                className="flex-1 py-3 rounded-2xl bg-gray-100 text-gray-700 font-bold text-sm hover:bg-gray-200 transition-colors">
+                Cancelar
+              </button>
+              <button type="button" disabled={!reactivateDueDate || isActionRunning(`reactivate-${reactivateTarget.id}`)}
+                onClick={confirmReactivate}
+                className="flex-1 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm disabled:opacity-50 transition-colors">
+                {isActionRunning(`reactivate-${reactivateTarget.id}`) ? 'Reativando...' : 'Reativar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* recusar aviso de pagamento: exige motivo */}
+      {noticeActionTarget && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-sm rounded-3xl p-6 space-y-4 shadow-2xl">
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-black text-gray-900">Recusar aviso</h3>
+              <button onClick={() => setNoticeActionTarget(null)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+            </div>
+            <p className="text-sm text-gray-500">O motivo é mostrado para o dono da loja.</p>
+            <textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)}
+              placeholder="Motivo da recusa"
+              className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-rose-400 min-h-[90px] resize-none" />
+            <div className="flex gap-3">
+              <button type="button" onClick={() => setNoticeActionTarget(null)}
+                className="flex-1 py-3 rounded-2xl bg-gray-100 text-gray-700 font-bold text-sm hover:bg-gray-200 transition-colors">
+                Cancelar
+              </button>
+              <button type="button" disabled={!rejectReason.trim() || isActionRunning(`reject-notice-${noticeActionTarget.id}`)}
+                onClick={handleRejectNotice}
+                className="flex-1 py-3 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm disabled:opacity-50 transition-colors">
+                {isActionRunning(`reject-notice-${noticeActionTarget.id}`) ? 'Recusando...' : 'Recusar'}
               </button>
             </div>
           </div>

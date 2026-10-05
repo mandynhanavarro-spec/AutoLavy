@@ -120,6 +120,7 @@ export default function ClientOnboarding({ org, isNew = false, plans = [], segme
     vertical:         org?.product_id       || 'loja',
     plan_id:          org?.plan_id          || plans[0]?.id || '',
     segments:         [],
+    trial_ends_at:    '',
   })
   const [savingStore, setSavingStore] = useState(false)
   const [storeError, setStoreError]   = useState('')
@@ -370,12 +371,24 @@ export default function ClientOnboarding({ org, isNew = false, plans = [], segme
 
         if (storeForm.plan_id) {
           const plan = plans.find(p => p.id === storeForm.plan_id)
+          // due_date sempre definido -- sem isso a loja nunca seria cobrada
+          // nem bloqueada (get_billing_status trata due_date NULL como
+          // "em dia" pra sempre). Vencimento = fim do periodo de teste; se o
+          // SuperAdmin nao escolher uma data, usa 15 dias por padrao (mesma
+          // regra do convite).
+          const trialEndDate = storeForm.trial_ends_at || (() => {
+            const d = new Date()
+            d.setDate(d.getDate() + 15)
+            return d.toISOString().slice(0, 10)
+          })()
           await supabase.from('saas_subscriptions').insert({
             organization_id: newOrg.id,
             plan_id:         storeForm.plan_id,
             billing_amount:  plan?.price || 0,
             status:          'ativa',
             payment_status:  'pendente',
+            due_date:        trialEndDate,
+            trial_ends_at:   new Date(`${trialEndDate}T23:59:59`).toISOString(),
           })
         }
 
@@ -924,6 +937,17 @@ Qualquer dúvida estou aqui! 😊`
                         </option>
                       ))}
                     </select>
+                  </div>
+
+                  {/* Periodo de teste (opcional) */}
+                  <div>
+                    <label className="text-[11px] font-bold text-gray-400 uppercase block mb-1.5">Período de teste até (opcional)</label>
+                    <input
+                      type="date"
+                      value={storeForm.trial_ends_at}
+                      onChange={e => setStoreForm(f => ({ ...f, trial_ends_at: e.target.value }))}
+                      className={inp}
+                    />
                   </div>
 
                   {/* Segmentos (apenas se vertical tem segmentos) */}

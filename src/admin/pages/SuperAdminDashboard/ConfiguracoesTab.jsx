@@ -1,7 +1,9 @@
-import { useState } from 'react'
-import { FileText, KeyRound, Lock, Plus, Settings2, Shield, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { CreditCard, FileText, KeyRound, Lock, Plus, Settings2, Shield, X } from 'lucide-react'
 import { supabase } from '../../../shared/lib/supabase'
 import { isPasswordPwned } from '../../../shared/lib/checkPwnedPassword'
+
+const BILLING_SETTINGS_ID = '00000000-0000-0000-0000-000000000001'
 
 /* ── constants ─────────────────────────────────────────────── */
 
@@ -68,6 +70,52 @@ export default function ConfiguracoesTab({
   const [pwChecking, setPwChecking] = useState(false)
   const [pwError, setPwError]       = useState('')
   const [pwSuccess, setPwSuccess]   = useState(false)
+
+  const [billing, setBilling] = useState({ pix_key: '', pix_recipient_name: '', qr_code_url: '', support_whatsapp: '' })
+  const [billingLoading, setBillingLoading] = useState(true)
+  const [qrUploading, setQrUploading] = useState(false)
+
+  useEffect(() => {
+    supabase.from('saas_billing_settings').select('*').eq('id', BILLING_SETTINGS_ID).single()
+      .then(({ data }) => {
+        if (data) setBilling({
+          pix_key: data.pix_key || '', pix_recipient_name: data.pix_recipient_name || '',
+          qr_code_url: data.qr_code_url || '', support_whatsapp: data.support_whatsapp || '',
+        })
+        setBillingLoading(false)
+      })
+  }, [])
+
+  const handleSaveBilling = async () => {
+    const key = 'save-billing'; startAction(key)
+    try {
+      const { error } = await supabase.from('saas_billing_settings').update({
+        pix_key: billing.pix_key.trim() || null,
+        pix_recipient_name: billing.pix_recipient_name.trim() || null,
+        qr_code_url: billing.qr_code_url || null,
+        support_whatsapp: billing.support_whatsapp.replace(/\D/g, '') || null,
+        updated_at: new Date().toISOString(),
+      }).eq('id', BILLING_SETTINGS_ID)
+      if (error) throw new Error(getErrorMessage(error, 'Erro ao salvar configuração de cobrança.'))
+      showSuccess('Configuração de cobrança salva.')
+    } catch (err) { showError(err, 'Erro ao salvar configuração de cobrança.') }
+    finally { finishAction() }
+  }
+
+  const handleQrUpload = async e => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setQrUploading(true)
+    try {
+      const path = `qr-code-${Date.now()}.${file.name.split('.').pop()}`
+      const { error: upErr } = await supabase.storage.from('billing-assets').upload(path, file, { upsert: true })
+      if (upErr) throw new Error(getErrorMessage(upErr, 'Erro ao enviar imagem.'))
+      const { data: pub } = supabase.storage.from('billing-assets').getPublicUrl(path)
+      setBilling(prev => ({ ...prev, qr_code_url: pub.publicUrl }))
+      showSuccess('QR Code enviado. Clique em Salvar para confirmar.')
+    } catch (err) { showError(err, 'Erro ao enviar imagem.') }
+    finally { setQrUploading(false); e.target.value = '' }
+  }
 
   const handleSaveAdmin = async e => {
     e.preventDefault(); startAction('submit-admin')
@@ -212,6 +260,39 @@ export default function ConfiguracoesTab({
         </div>
 
         <div className="space-y-4">
+          {/* ── Cobrança (PIX/QR/WhatsApp) ── */}
+          <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+            <div className="flex items-center gap-2 mb-4">
+              <CreditCard size={16} className="text-gray-400" />
+              <h3 className="font-black text-gray-900 text-sm">Cobrança</h3>
+            </div>
+            {billingLoading ? (
+              <p className="text-sm text-gray-400">Carregando...</p>
+            ) : (
+              <div className="space-y-3">
+                <input type="text" placeholder="Chave PIX" className={inp}
+                  value={billing.pix_key} onChange={e => setBilling({ ...billing, pix_key: e.target.value })} />
+                <input type="text" placeholder="Nome do recebedor" className={inp}
+                  value={billing.pix_recipient_name} onChange={e => setBilling({ ...billing, pix_recipient_name: e.target.value })} />
+                <input type="text" placeholder="WhatsApp de suporte (só números, com DDI)" className={inp}
+                  value={billing.support_whatsapp} onChange={e => setBilling({ ...billing, support_whatsapp: e.target.value })} />
+                <div className="rounded-xl bg-gray-50 p-4 space-y-2">
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400">QR Code PIX</label>
+                  {billing.qr_code_url && (
+                    <img src={billing.qr_code_url} alt="QR Code atual" className="w-28 h-28 rounded-lg border border-gray-200" />
+                  )}
+                  <input type="file" accept="image/*" onChange={handleQrUpload} disabled={qrUploading}
+                    className="text-xs text-gray-500" />
+                  {qrUploading && <p className="text-xs text-gray-400">Enviando...</p>}
+                </div>
+                <button type="button" disabled={isActionRunning('save-billing')} onClick={handleSaveBilling}
+                  className="w-full rounded-xl bg-[#1e1b4b] hover:bg-[#2d2878] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-60 transition-colors">
+                  {isActionRunning('save-billing') ? 'Salvando...' : 'Salvar configuração de cobrança'}
+                </button>
+              </div>
+            )}
+          </div>
+
           {/* ── Gateways e Tokens ── */}
           <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
             <div className="flex items-center gap-2 mb-4">

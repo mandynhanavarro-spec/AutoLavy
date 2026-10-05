@@ -48,7 +48,7 @@ function StatusBadge({ value }) {
 /* ── component ─────────────────────────────────────────────── */
 
 const PagamentosTab = forwardRef(function PagamentosTab(
-  { payments, organizations, subscriptions, loading, loadAdminData, showSuccess, showError, startAction, finishAction, isActionRunning, isActive },
+  { payments, organizations, loading, loadAdminData, showSuccess, showError, startAction, finishAction, isActionRunning, isActive },
   ref
 ) {
   const [showPaymentModal, setShowPaymentModal] = useState(false)
@@ -68,21 +68,18 @@ const PagamentosTab = forwardRef(function PagamentosTab(
     try {
       if (!paymentForm.organization_id) throw new Error('Selecione o cliente.')
       if (Number(paymentForm.amount || 0) <= 0) throw new Error('Informe um valor maior que zero.')
-      const sub = subscriptions.find(s => s.organization_id === paymentForm.organization_id)
-      const { error } = await supabase.from('saas_payments').insert({
-        organization_id: paymentForm.organization_id, subscription_id: sub?.id || null,
-        amount: Number(paymentForm.amount || 0), method: paymentForm.method,
-        status: paymentForm.status, due_date: paymentForm.due_date || null,
-        paid_at: paymentForm.status === 'pago' ? new Date().toISOString() : null,
-        notes: paymentForm.notes,
+      // register_manual_payment (banco) decide o vencimento: se status='pago',
+      // sempre avanca 1 mes A PARTIR DO VENCIMENTO ANTERIOR (nao da data do
+      // pagamento) -- nao manda due_date pra 'pago' pra nao tentar sobrepor essa regra.
+      const { error } = await supabase.rpc('register_manual_payment', {
+        p_org_id: paymentForm.organization_id,
+        p_amount: Number(paymentForm.amount || 0),
+        p_method: paymentForm.method,
+        p_status: paymentForm.status,
+        p_due_date: paymentForm.status === 'pago' ? null : (paymentForm.due_date || null),
+        p_notes: paymentForm.notes || null,
       })
       if (error) throw new Error(getErrorMessage(error, 'Erro ao registrar pagamento.'))
-      if (sub) {
-        await supabase.from('saas_subscriptions').update({
-          payment_status: paymentForm.status, due_date: paymentForm.due_date || sub.due_date,
-          status: paymentForm.status === 'cancelado' ? 'cancelada' : sub.status,
-        }).eq('id', sub.id)
-      }
       await loadAdminData(); setPaymentForm(initialPaymentForm); setShowPaymentModal(false); showSuccess('Pagamento registrado.')
     } catch (err) { showError(err, 'Erro ao salvar pagamento.') }
     finally { finishAction() }

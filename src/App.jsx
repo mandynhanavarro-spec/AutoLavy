@@ -10,6 +10,10 @@ import { useServiceWorker } from './hooks/useServiceWorker'
 import { useOrgBranding } from './core/hooks/useOrgBranding'
 import { TermosPage, PrivacidadePage } from './core/pages/Legal'
 import { TERMS_VERSION, PRIVACY_VERSION } from './shared/lib/legal'
+import { getVerticalBrand } from './shared/lib/verticalBrand'
+import { BLOCKING_SITUACOES, WARNING_SITUACOES } from './shared/lib/billingStatus'
+
+const MeuPlano = lazy(() => import('./core/pages/MeuPlano'))
 
 // ── Loja vertical (lazy) ──────────────────────────────────────
 const LojaLayout        = lazy(() => import('./modules/loja/components/Layout'))
@@ -54,6 +58,7 @@ const VERTICAL_ROUTES = {
       { path: '/equipe',        Component: LojaEquipe        },
       { path: '/configuracoes', Component: LojaConfiguracoes },
       { path: '/onboarding',    Component: LojaOnboarding    },
+      { path: '/meu-plano',     Component: MeuPlano          },
     ],
   },
   // servico: { Layout: ServicoLayout, pages: [...] },  // fase 2
@@ -72,6 +77,7 @@ const VERTICAL_ROUTES = {
       { path: '/relatorios',     Component: BelezaRelatorios    },
       { path: '/equipe',         Component: BelezaEquipe        },
       { path: '/configuracoes',  Component: BelezaConfiguracoes },
+      { path: '/meu-plano',      Component: MeuPlano            },
     ],
   },
 }
@@ -87,8 +93,7 @@ function S({ children }) {
 
 // ── Placeholder para verticais ainda nao construidas ──────────
 function VerticalEmConstrucao({ productId }) {
-  const LABELS = { servico: 'Meu Servico', beleza: 'Meu Studio' }
-  const label = LABELS[productId] || productId
+  const label = getVerticalBrand(productId).name
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
       <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-sm border border-slate-100 text-center space-y-4">
@@ -465,6 +470,7 @@ export default function App() {
   const [modules, setModules] = useState([])
   const [loading, setLoading] = useState(true)
   const [latestTermsAcceptance, setLatestTermsAcceptance] = useState(null)
+  const [billingStatus, setBillingStatus] = useState(null)
   const currentUserIdRef = useRef(null)
 
   useEffect(() => {
@@ -535,6 +541,12 @@ export default function App() {
         }
       }
 
+      let loadedBillingStatus = null
+      if (loadedTenant?.id) {
+        const { data: statusRows } = await supabase.rpc('get_billing_status', { p_org_id: loadedTenant.id })
+        loadedBillingStatus = Array.isArray(statusRows) ? statusRows[0] : statusRows
+      }
+
       let loadedLatestAcceptance = null
       if (loadedProfile?.role === 'admin') {
         const { data: acceptanceRows } = await supabase
@@ -552,6 +564,7 @@ export default function App() {
       setTenant(loadedTenant)
       setModules(loadedModules)
       setLatestTermsAcceptance(loadedLatestAcceptance)
+      setBillingStatus(loadedBillingStatus)
       setLoading(false)
     }
 
@@ -656,18 +669,28 @@ export default function App() {
     )
   }
 
-  // ── Conta suspensa ────────────────────────────────────────────
-  const isSuspended =
-    tenant?.access_status === 'bloqueado' ||
-    tenant?.customer_status === 'suspenso' ||
-    tenant?.is_active === false
+  // ── Conta suspensa/cancelada ───────────────────────────────────
+  // A situacao vem sempre de get_billing_status() (banco) -- cobre
+  // tanto suspensao/cancelamento manual quanto o calculo por data
+  // (sem pg_cron, por isso precisa ser buscada a cada sessao).
+  const isBlocked = BLOCKING_SITUACOES.includes(billingStatus?.situacao)
 
-  if (session && tenant && isSuspended) {
+  if (session && tenant && isBlocked) {
     return (
       <TenantProvider value={{ tenant, modules: [], profile, loading: false }}>
         <Router>
           <Routes>
-            <Route path="*" element={<SuspensaoPage />} />
+            <Route
+              path="*"
+              element={
+                <SuspensaoPage
+                  tenant={tenant}
+                  profile={profile}
+                  session={session}
+                  billingSituacao={billingStatus?.situacao}
+                />
+              }
+            />
           </Routes>
         </Router>
       </TenantProvider>
@@ -697,6 +720,24 @@ export default function App() {
           isFirstAcceptance={!latestTermsAcceptance}
           onAccepted={() => setLatestTermsAcceptance({ terms_version: TERMS_VERSION, privacy_version: PRIVACY_VERSION })}
         />
+      )}
+      {profile?.role === 'admin' && !supportMode && WARNING_SITUACOES.includes(billingStatus?.situacao) && (
+        <div style={{
+          position: 'sticky', top: 0, zIndex: 40,
+          backgroundColor: billingStatus.situacao === 'atrasado' ? '#fef2f2' : '#fffbeb',
+          borderBottom: `1px solid ${billingStatus.situacao === 'atrasado' ? '#fecaca' : '#fde68a'}`,
+          padding: '8px 16px',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+        }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: billingStatus.situacao === 'atrasado' ? '#991b1b' : '#92400e' }}>
+            {billingStatus.situacao === 'atrasado'
+              ? `Pagamento atrasado há ${billingStatus.dias_atraso} dia(s).`
+              : `Seu plano vence em ${billingStatus.dias_para_vencer} dia(s).`}
+          </span>
+          <a href="/meu-plano" style={{ fontSize: 13, fontWeight: 700, textDecoration: 'underline', color: billingStatus.situacao === 'atrasado' ? '#991b1b' : '#92400e' }}>
+            Ver Meu Plano
+          </a>
+        </div>
       )}
       {supportMode && (
         <div style={{

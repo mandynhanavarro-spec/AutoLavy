@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   Settings,
   DollarSign,
+  CreditCard,
   X,
 } from 'lucide-react'
 import { supabase } from '../../../shared/lib/supabase'
@@ -169,6 +170,9 @@ export default function Layout({ profile }) {
             Sistema
           </p>
           {NAV_SISTEMA.map(i => <SLink key={i.path} {...i} />)}
+          {profile?.role === 'admin' && (
+            <SLink path="/meu-plano" icon={CreditCard} label="Meu Plano" />
+          )}
 
           {profile?.role === 'superadmin' && (
             <>
@@ -360,6 +364,9 @@ export default function Layout({ profile }) {
                 Sistema
               </p>
               {NAV_SISTEMA.map(i => <DLink key={i.path} {...i} />)}
+              {profile?.role === 'admin' && (
+                <DLink path="/meu-plano" icon={CreditCard} label="Meu Plano" />
+              )}
             </nav>
 
             {/* Drawer logout */}
