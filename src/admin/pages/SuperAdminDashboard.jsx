@@ -331,6 +331,7 @@ export default function SuperAdminDashboard() {
           isNew={onboardingIsNew}
           plans={plans}
           segments={segments}
+          limitsByPlan={limitsByPlan}
           onClose={(tabHint) => {
             setOnboardingOrg(null)
             setOnboardingIsNew(false)

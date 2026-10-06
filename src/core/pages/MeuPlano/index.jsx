@@ -259,7 +259,7 @@ export default function MeuPlano() {
                 <p className="font-bold text-slate-900 text-sm">{p.plan_name}</p>
                 <p className="text-xs text-slate-500">R$ {Number(p.plan_price || 0).toFixed(2)}/mês</p>
                 <p className="text-xs text-slate-400">
-                  {p.max_products ?? '∞'} produtos · {p.max_users ?? '∞'} usuários
+                  {p.max_products ?? '∞'} produtos · {p.max_users ?? '∞'} usuários · {p.max_registers ?? '∞'} caixa{p.max_registers === 1 ? '' : 's'}
                 </p>
                 {p.plan_id === plan?.plan_id && (
                   <span className="inline-block text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">

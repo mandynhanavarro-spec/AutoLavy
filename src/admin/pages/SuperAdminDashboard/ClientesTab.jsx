@@ -150,8 +150,9 @@ const ClientesTab = forwardRef(function ClientesTab(
   const [deleteLoading, setDeleteLoading] = useState(false)
   const [deleteError, setDeleteError] = useState('')
 
-  /* category input for quick create form */
-  const [catInput, setCatInput] = useState('')
+  /* category input for quick create form -- um valor por segmento (chave
+     '_none' quando a loja nao tem segmento selecionado) */
+  const [catInputs, setCatInputs] = useState({})
 
   /* org registers state (used inside client edit modal) */
   const [orgRegisters, setOrgRegisters]         = useState([])
@@ -285,14 +286,24 @@ const ClientesTab = forwardRef(function ClientesTab(
 
   function handleVerticalChange(newProductId) {
     setClientForm(f => ({ ...f, product_id: newProductId, segments: [], categories: [] }))
-    setCatInput('')
+    setCatInputs({})
+  }
+
+  // Normaliza preset_categories vindo do banco: aceita tanto o formato
+  // antigo (array de strings) quanto o novo ({name, segment_id}), sempre
+  // devolvendo o formato novo pro clientForm.
+  function normalizeCategories(raw) {
+    if (!Array.isArray(raw)) return []
+    return raw.map(item =>
+      typeof item === 'string' ? { name: item, segment_id: null } : item
+    ).filter(c => c?.name)
   }
 
   /* ── helpers ─────────────────────────────────────────────── */
 
   const getPlanById = id => plans.find(p => p.id === id)
   const getPlanIdBySlug = slug => plans.find(p => p.slug === slug)?.id || ''
-  const getMaxRegistersByPlanId = id => limitsByPlan[id]?.max_users || 1
+  const getMaxRegistersByPlanId = id => limitsByPlan[id]?.max_registers || 1
   const buildInviteLink = token => `${window.location.origin}/registrar?token=${token}`
   const getTokenFromInviteLink = link => link.split('token=')[1] || ''
 
@@ -323,7 +334,7 @@ const ClientesTab = forwardRef(function ClientesTab(
     setGeneratedLink(''); setClientModalMode('create')
     setEditingOrganizationId(null); setEditingInviteId(null)
     setClientForm({ ...initialClientForm, plan_id: plans[0]?.id || '' })
-    setOrgRegisters([]); setNewRegName(''); setNewRegDesc(''); setCatInput('')
+    setOrgRegisters([]); setNewRegName(''); setNewRegDesc(''); setCatInputs({})
   }
   const openClientModal = () => { resetClientModal(); setShowClientModal(true) }
   const closeClientModal = () => { setShowClientModal(false); resetClientModal() }
@@ -360,8 +371,10 @@ const ClientesTab = forwardRef(function ClientesTab(
       notes: invite.notes || '', login_email: invite.login_email || '',
       initial_password: invite.initial_password || '', product_id: invite.product_id || 'loja',
       plan_id: getPlanIdBySlug(invite.plan_type || 'basic'),
-      segments: [],
+      segments: Array.isArray(invite.preset_segments) ? invite.preset_segments : [],
+      categories: normalizeCategories(invite.preset_categories),
     })
+    setCatInputs({})
     setShowClientModal(true)
   }
 
@@ -529,6 +542,8 @@ const ClientesTab = forwardRef(function ClientesTab(
       initial_password: clientForm.initial_password || null,
       plan_type: selectedPlan?.slug || 'basic', product_id: clientForm.product_id,
       max_registers: getMaxRegistersByPlanId(clientForm.plan_id),
+      preset_segments: clientForm.segments.length > 0 ? clientForm.segments : [],
+      preset_categories: clientForm.categories.length > 0 ? clientForm.categories : null,
     }).eq('id', editingInviteId)
     if (error) throw new Error(getErrorMessage(error, 'Erro ao atualizar convite.'))
   }
@@ -556,6 +571,7 @@ const ClientesTab = forwardRef(function ClientesTab(
           login_email: clientForm.login_email, initial_password: clientForm.initial_password,
           plan_type: selectedPlan?.slug || 'basic', product_id: clientForm.product_id,
           max_registers: getMaxRegistersByPlanId(clientForm.plan_id),
+          preset_segments: clientForm.segments.length > 0 ? clientForm.segments : [],
           preset_categories: clientForm.categories.length > 0 ? clientForm.categories : null,
         })
         if (error) throw new Error(getErrorMessage(error, 'Erro ao gerar convite.'))
@@ -1093,98 +1109,125 @@ const ClientesTab = forwardRef(function ClientesTab(
                   </div>
                 )}
 
-                {/* Categorias — modo criação apenas, opcional */}
-                {clientModalMode === 'create' && (() => {
-                  const segKey = clientForm.segments[0] || (clientForm.product_id === 'loja' ? 'geral' : null)
-                  const pool = segKey ? (PRESET_CATEGORIES[segKey] || PRESET_CATEGORIES.fallback) : PRESET_CATEGORIES.fallback
-                  const alreadyAdded = clientForm.categories || []
-
+                {/* Categorias — criação e edição de convite, opcional.
+                    Agrupadas por segmento escolhido (PREP-1): cada categoria
+                    carrega o segment_id a que pertence, pra lojas com mais
+                    de um segmento saberem separar as categorias certas. */}
+                {(clientModalMode === 'create' || clientModalMode === 'edit-invite') && (() => {
                   const HISTORY_KEY = 'autolavy_category_history'
                   function saveToHistory(name) {
                     const current = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]')
                     if (current.includes(name)) return
                     localStorage.setItem(HISTORY_KEY, JSON.stringify([name, ...current].slice(0, 50)))
                   }
-
                   const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]')
-                  const fromHistory = catInput.trim()
-                    ? history.filter(h => h.toLowerCase().includes(catInput.toLowerCase()) && !alreadyAdded.includes(h))
-                    : []
-                  const fromPreset = catInput.trim()
-                    ? pool.filter(p => p.toLowerCase().includes(catInput.toLowerCase()) && !alreadyAdded.includes(p) && !fromHistory.includes(p))
-                    : []
-                  const suggestions = [...fromHistory, ...fromPreset].slice(0, 8)
 
-                  function addCategory(name) {
+                  function addCategory(segId, name) {
                     const trimmed = name.trim()
-                    if (!trimmed || alreadyAdded.includes(trimmed)) return
+                    if (!trimmed) return
+                    const exists = (clientForm.categories || [])
+                      .some(c => c.name === trimmed && (c.segment_id || null) === (segId || null))
+                    if (exists) return
                     saveToHistory(trimmed)
-                    setClientForm(f => ({ ...f, categories: [...(f.categories || []), trimmed] }))
-                    setCatInput('')
+                    setClientForm(f => ({
+                      ...f,
+                      categories: [...(f.categories || []), { name: trimmed, segment_id: segId || null }],
+                    }))
+                    setCatInputs(prev => ({ ...prev, [segId || '_none']: '' }))
                   }
-                  function removeCategory(name) {
-                    setClientForm(f => ({ ...f, categories: (f.categories || []).filter(c => c !== name) }))
+                  function removeCategory(segId, name) {
+                    setClientForm(f => ({
+                      ...f,
+                      categories: (f.categories || [])
+                        .filter(c => !(c.name === name && (c.segment_id || null) === (segId || null))),
+                    }))
                   }
+
+                  // Um bloco por segmento selecionado; sem segmento escolhido
+                  // (ou vertical sem segmentos) cai num único bloco genérico.
+                  const groups = clientForm.segments.length > 0 ? clientForm.segments : [null]
+
                   return (
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       <label className="text-xs font-bold text-gray-400 uppercase">
                         Categorias <span className="normal-case font-normal text-gray-400">(opcional — criadas automaticamente para o cliente)</span>
                       </label>
+                      {groups.map(segId => {
+                        const pool = PRESET_CATEGORIES[segId] || PRESET_CATEGORIES.fallback
+                        const segLabel = segId ? (segmentsById[segId]?.name || segId) : null
+                        const added = (clientForm.categories || []).filter(c => (c.segment_id || null) === (segId || null))
+                        const inputKey = segId || '_none'
+                        const inputVal = catInputs[inputKey] || ''
+                        const addedNames = added.map(c => c.name)
+                        const fromHistory = inputVal.trim()
+                          ? history.filter(h => h.toLowerCase().includes(inputVal.toLowerCase()) && !addedNames.includes(h))
+                          : []
+                        const fromPreset = inputVal.trim()
+                          ? pool.filter(p => p.toLowerCase().includes(inputVal.toLowerCase()) && !addedNames.includes(p) && !fromHistory.includes(p))
+                          : []
+                        const suggestions = [...fromHistory, ...fromPreset].slice(0, 8)
 
-                      {/* Tags das categorias adicionadas */}
-                      {alreadyAdded.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5">
-                          {alreadyAdded.map(cat => (
-                            <span key={cat} className="inline-flex items-center gap-1 bg-violet-50 border border-violet-200 text-violet-700 text-xs font-bold px-2.5 py-1 rounded-lg">
-                              {cat}
-                              <button type="button" onClick={() => removeCategory(cat)} className="text-violet-400 hover:text-violet-700 transition-colors ml-0.5">
-                                <X size={10} />
-                              </button>
-                            </span>
-                          ))}
-                        </div>
-                      )}
+                        return (
+                          <div key={inputKey} className="rounded-2xl border border-gray-100 bg-gray-50/50 p-3 space-y-2">
+                            {segLabel && (
+                              <p className="text-[11px] font-black text-violet-500 uppercase tracking-wide">{segLabel}</p>
+                            )}
 
-                      {/* Input + botão + dropdown */}
-                      <div className="relative">
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            value={catInput}
-                            onChange={e => setCatInput(e.target.value)}
-                            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCategory(catInput) } }}
-                            placeholder="Digite uma categoria..."
-                            className={inp + ' flex-1'}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => addCategory(catInput)}
-                            disabled={!catInput.trim()}
-                            className="flex items-center justify-center w-10 h-10 rounded-xl bg-violet-600 hover:bg-violet-700 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
-                          >
-                            <Plus size={16} />
-                          </button>
-                        </div>
+                            {added.length > 0 && (
+                              <div className="flex flex-wrap gap-1.5">
+                                {added.map(cat => (
+                                  <span key={cat.name} className="inline-flex items-center gap-1 bg-violet-50 border border-violet-200 text-violet-700 text-xs font-bold px-2.5 py-1 rounded-lg">
+                                    {cat.name}
+                                    <button type="button" onClick={() => removeCategory(segId, cat.name)} className="text-violet-400 hover:text-violet-700 transition-colors ml-0.5">
+                                      <X size={10} />
+                                    </button>
+                                  </span>
+                                ))}
+                              </div>
+                            )}
 
-                        {suggestions.length > 0 && (
-                          <div className="absolute z-10 left-0 right-12 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
-                            {suggestions.map(s => {
-                              const isHistory = fromHistory.includes(s)
-                              return (
+                            <div className="relative">
+                              <div className="flex gap-2">
+                                <input
+                                  type="text"
+                                  value={inputVal}
+                                  onChange={e => setCatInputs(prev => ({ ...prev, [inputKey]: e.target.value }))}
+                                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCategory(segId, inputVal) } }}
+                                  placeholder="Digite uma categoria..."
+                                  className={inp + ' flex-1'}
+                                />
                                 <button
-                                  key={s}
                                   type="button"
-                                  onMouseDown={e => { e.preventDefault(); addCategory(s) }}
-                                  className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-violet-50 hover:text-violet-700 font-medium transition-colors flex items-center gap-2"
+                                  onClick={() => addCategory(segId, inputVal)}
+                                  disabled={!inputVal.trim()}
+                                  className="flex items-center justify-center w-10 h-10 rounded-xl bg-violet-600 hover:bg-violet-700 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
                                 >
-                                  {isHistory && <Clock size={12} className="text-gray-400 shrink-0" />}
-                                  {s}
+                                  <Plus size={16} />
                                 </button>
-                              )
-                            })}
+                              </div>
+
+                              {suggestions.length > 0 && (
+                                <div className="absolute z-10 left-0 right-12 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+                                  {suggestions.map(s => {
+                                    const isHistory = fromHistory.includes(s)
+                                    return (
+                                      <button
+                                        key={s}
+                                        type="button"
+                                        onMouseDown={e => { e.preventDefault(); addCategory(segId, s) }}
+                                        className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-violet-50 hover:text-violet-700 font-medium transition-colors flex items-center gap-2"
+                                      >
+                                        {isHistory && <Clock size={12} className="text-gray-400 shrink-0" />}
+                                        {s}
+                                      </button>
+                                    )
+                                  })}
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        )}
-                      </div>
+                        )
+                      })}
                     </div>
                   )
                 })()}

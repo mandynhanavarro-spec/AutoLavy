@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Navigate } from 'react-router-dom'
-import { Store, Tag, Users, Check, Plus, X, ArrowRight, CheckCircle2 } from 'lucide-react'
+import { Store, Tag, Users, Check, Plus, X, ArrowRight, CheckCircle2, Layers } from 'lucide-react'
 import { supabase } from '../../../../shared/lib/supabase'
 import { useTenantContext } from '../../../../core/contexts/TenantContext'
 import { useModules } from '../../../../core/hooks/useModules'
@@ -51,6 +51,13 @@ export default function LojaOnboarding() {
   const [customInput, setCustomInput]       = useState('')
   const [customCats, setCustomCats]         = useState([])
 
+  // Segmentos: lista disponível pro produto + os já escolhidos no convite
+  // (preset_segments → organization_segments pelo complete_store_onboarding).
+  // O cliente pode ajustar antes de seguir pra categorias.
+  const [availableSegments, setAvailableSegments] = useState(null) // null = carregando
+  const [existingSegmentIds, setExistingSegmentIds] = useState([])
+  const [checkedSegments, setCheckedSegments] = useState(() => new Set())
+
   useEffect(() => {
     if (!orgId) return
     supabase
@@ -66,6 +73,27 @@ export default function LojaOnboarding() {
         }
       })
   }, [orgId])
+
+  useEffect(() => {
+    if (!orgId || !tenant?.product_id) return
+    Promise.all([
+      supabase.from('segments').select('id, name').eq('product_id', tenant.product_id).eq('is_active', true),
+      supabase.from('organization_segments').select('segment_id').eq('org_id', orgId),
+    ]).then(([segRes, orgSegRes]) => {
+      setAvailableSegments(segRes.data || [])
+      const ids = (orgSegRes.data || []).map(r => r.segment_id)
+      setExistingSegmentIds(ids)
+      setCheckedSegments(new Set(ids))
+    })
+  }, [orgId, tenant?.product_id])
+
+  // Nenhum segmento cadastrado pro produto — não trava o cliente numa
+  // tela vazia, pula direto pra categorias assim que souber disso.
+  useEffect(() => {
+    if (step === 1 && availableSegments !== null && availableSegments.length === 0) {
+      setStep(2)
+    }
+  }, [step, availableSegments])
 
   // Já concluído (acesso direto via URL) → redireciona
   if (tenant?.onboarding_completed) {
@@ -95,12 +123,29 @@ export default function LojaOnboarding() {
 
   function goToTeamStep(cats) {
     setPending(cats)
-    setStep(2)
+    setStep(3)
+  }
+
+  function toggleSegment(id) {
+    setCheckedSegments(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
   }
 
   async function finish() {
     setSaving(true)
     try {
+      // Segmentos ajustados pelo cliente nesta etapa: só insere os que
+      // ainda não estavam em organization_segments (mesmo padrão das
+      // categorias — nunca remove o que já veio do convite).
+      const newSegmentIds = [...checkedSegments].filter(id => !existingSegmentIds.includes(id))
+      if (newSegmentIds.length > 0) {
+        await supabase.from('organization_segments').insert(
+          newSegmentIds.map(segment_id => ({ org_id: orgId, segment_id }))
+        )
+      }
       if (pendingCategories.length > 0) {
         await supabase.from('categories').insert(
           pendingCategories.map(name => ({ org_id: orgId, name, segment_id: segment }))
@@ -172,7 +217,7 @@ export default function LojaOnboarding() {
   function Dots() {
     return (
       <div className="flex items-center justify-center gap-1.5 mb-2">
-        {[0, 1, 2].map(i => (
+        {[0, 1, 2, 3].map(i => (
           <div
             key={i}
             className="h-1.5 rounded-full transition-all duration-300"
@@ -211,8 +256,100 @@ export default function LojaOnboarding() {
     )
   }
 
-  /* ── Step 1: Categorias ──────────────────────────────────── */
+  /* ── Step 1: Segmentos ───────────────────────────────────── */
   if (step === 1) {
+    // Nenhum segmento cadastrado pro produto (ou ainda carregando) —
+    // não trava o cliente numa tela vazia, pula direto pra categorias.
+    if (availableSegments === null) {
+      return (
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="w-6 h-6 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: color, borderTopColor: 'transparent' }} />
+        </div>
+      )
+    }
+    if (availableSegments.length === 0) {
+      return (
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="w-6 h-6 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: color, borderTopColor: 'transparent' }} />
+        </div>
+      )
+    }
+
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="w-full max-w-sm bg-white rounded-3xl p-6 shadow-sm border border-gray-100 space-y-4">
+          <Dots />
+
+          <div className="flex items-center gap-2">
+            <div
+              className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+              style={{ backgroundColor: color + '20' }}
+            >
+              <Layers size={16} style={{ color }} />
+            </div>
+            <div>
+              <h2 className="text-lg font-black text-gray-900">Segmentos da loja</h2>
+              <p className="text-xs text-gray-400">O que sua loja vende? Pode marcar mais de um.</p>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            {availableSegments.map(seg => {
+              const isChecked = checkedSegments.has(seg.id)
+              return (
+                <label
+                  key={seg.id}
+                  className="flex items-center gap-3 rounded-2xl px-4 py-3 border cursor-pointer transition-colors"
+                  style={isChecked
+                    ? { borderColor: color + '40', backgroundColor: color + '12' }
+                    : { borderColor: '#f3f4f6', backgroundColor: '#f9fafb' }
+                  }
+                  onClick={() => toggleSegment(seg.id)}
+                >
+                  <div
+                    className="w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors"
+                    style={isChecked
+                      ? { backgroundColor: color, borderColor: color }
+                      : { borderColor: '#d1d5db' }
+                    }
+                  >
+                    {isChecked && <Check size={11} color="white" strokeWidth={3} />}
+                  </div>
+                  <span
+                    className="flex-1 text-sm font-semibold"
+                    style={{ color: isChecked ? '#111827' : '#6b7280' }}
+                  >
+                    {seg.name}
+                  </span>
+                </label>
+              )
+            })}
+          </div>
+
+          <div className="flex gap-2 pt-1">
+            {existingSegmentIds.length === 0 && (
+              <button
+                onClick={() => setStep(2)}
+                className="flex-1 py-3 rounded-2xl bg-gray-100 text-gray-600 font-bold text-sm"
+              >
+                Pular
+              </button>
+            )}
+            <button
+              onClick={() => setStep(2)}
+              className="flex-1 py-3 rounded-2xl text-white font-bold text-sm shadow-md transition-opacity"
+              style={{ backgroundColor: color }}
+            >
+              {checkedSegments.size > 0 ? 'Continuar' : 'Continuar sem segmento'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  /* ── Step 2: Categorias ──────────────────────────────────── */
+  if (step === 2) {
     // Aguarda a query do banco antes de renderizar o step
     if (existingCats === null) {
       return (

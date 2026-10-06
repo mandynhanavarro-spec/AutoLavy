@@ -18,7 +18,7 @@ const PLAN_FEATURES = [
 const initialPlanForm = {
   name: '', slug: '', price: '', description: '', status: 'ativo',
   features: PLAN_FEATURES.reduce((a, f) => ({ ...a, [f.key]: false }), {}),
-  limits: { max_users: 0, max_clients: 0, max_products: 0, max_services: 0 },
+  limits: { max_users: 0, max_clients: 0, max_products: 0, max_services: 0, max_registers: 1 },
 }
 
 const STATUS_CLASSES = {
@@ -74,6 +74,7 @@ const PlanosTab = forwardRef(function PlanosTab(
         max_clients:  String(lims.max_clients  || 0),
         max_products: String(lims.max_products || 0),
         max_services: String(lims.max_services || 0),
+        max_registers: String(lims.max_registers || 1),
       },
     })
     setEditingPlanId(plan.id)
@@ -103,6 +104,7 @@ const PlanosTab = forwardRef(function PlanosTab(
         max_clients: Number(planForm.limits.max_clients || 0),
         max_products: Number(planForm.limits.max_products || 0),
         max_services: Number(planForm.limits.max_services || 0),
+        max_registers: Number(planForm.limits.max_registers || 1),
       }, { onConflict: 'plan_id' })
       if (lErr) { if (!isEditing) await supabase.from('saas_plans').delete().eq('id', planId); throw new Error(getErrorMessage(lErr, 'Erro ao salvar limites.')) }
       const { error: fErr } = await supabase.from('saas_plan_features').upsert(
@@ -168,7 +170,7 @@ const PlanosTab = forwardRef(function PlanosTab(
                   ))}
                 </div>
                 <div className="grid grid-cols-2 gap-3 text-sm">
-                  {[['Usuários', lims.max_users], ['Clientes', lims.max_clients], ['Produtos', lims.max_products], ['Serviços', lims.max_services]].map(([l, v]) => (
+                  {[['Usuários', lims.max_users], ['Clientes', lims.max_clients], ['Produtos', lims.max_products], ['Serviços', lims.max_services], ['Caixas', lims.max_registers]].map(([l, v]) => (
                     <div key={l} className="rounded-xl bg-gray-50 p-3 text-gray-600">{l}: <strong>{v ?? 0}</strong></div>
                   ))}
                 </div>
@@ -217,7 +219,7 @@ const PlanosTab = forwardRef(function PlanosTab(
                 <div className="space-y-3">
                   <h4 className="font-bold text-gray-700 text-sm">Limites</h4>
                   <div className="grid gap-3">
-                    {[['max_users','Max. usuários'],['max_clients','Max. clientes'],['max_products','Max. produtos'],['max_services','Max. serviços']].map(([key, label]) => (
+                    {[['max_users','Max. usuários'],['max_clients','Max. clientes'],['max_products','Max. produtos'],['max_services','Max. serviços'],['max_registers','Máximo de caixas']].map(([key, label]) => (
                       <div key={key} className="space-y-1">
                         <label className="text-xs font-bold text-gray-400 uppercase">{label}</label>
                         <input type="number" min="0" className={inp} value={planForm.limits[key]} onChange={e => setPlanForm({ ...planForm, limits: { ...planForm.limits, [key]: e.target.value } })} />

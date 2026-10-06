@@ -51,6 +51,22 @@ export default function Register() {
       return
     }
 
+    // PREP-2: signUp() dispara SIGNED_IN antes do RPC de onboarding rodar,
+    // e isso remonta o Router em App.jsx -- um novo <Register/> nasce aqui
+    // com o MESMO token, mas o convite já pode estar marcado como usado
+    // pela instância original (que segue rodando em segundo plano). Sem
+    // isto, essa instância nova revalidaria o convite e mostraria "convite
+    // inválido" por cima do cadastro que, na verdade, deu certo.
+    if (sessionStorage.getItem(`onboarding_inflight_${token}`)) {
+      setStep('submitting')
+      // Rede de segurança: se por algum motivo o redirect da instância
+      // original (setTimeout em handleSubmit) não disparar, segue pro
+      // painel mesmo assim -- App.jsx decide a tela certa a partir do
+      // estado real do profile/org.
+      const fallback = setTimeout(() => window.location.replace('/'), 6000)
+      return () => clearTimeout(fallback)
+    }
+
     supabase
       .rpc('get_invite_by_token', { invite_token: token })
       .then(({ data, error }) => {
@@ -96,6 +112,10 @@ export default function Register() {
     }
 
     setStep('submitting')
+    // PREP-2: marca ANTES do signUp, porque o evento SIGNED_IN (que remonta
+    // este componente via App.jsx) pode disparar antes mesmo da Promise do
+    // signUp() resolver aqui.
+    sessionStorage.setItem(`onboarding_inflight_${token}`, '1')
 
     try {
       // 1. Criar conta auth (ou recuperar se já existir)
@@ -154,10 +174,12 @@ export default function Register() {
 
       if (rpcError) throw rpcError
 
+      sessionStorage.removeItem(`onboarding_inflight_${token}`)
       setStep('done')
       // Reload completo para o App buscar profile + tenant atualizados
       setTimeout(() => window.location.replace('/'), 2000)
     } catch (err) {
+      sessionStorage.removeItem(`onboarding_inflight_${token}`)
       setSubmitError(err.message || 'Erro ao finalizar cadastro. Tente novamente.')
       setStep('form')
     }

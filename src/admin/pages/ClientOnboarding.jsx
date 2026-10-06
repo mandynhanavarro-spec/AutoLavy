@@ -91,7 +91,7 @@ function Stepper({ step }) {
 
 /* ── main ──────────────────────────────────────────────────── */
 
-export default function ClientOnboarding({ org, isNew = false, plans = [], segments = [], onClose, onRefresh }) {
+export default function ClientOnboarding({ org, isNew = false, plans = [], segments = [], limitsByPlan = {}, onClose, onRefresh }) {
   const [sessionRestored] = useState(() => {
     try {
       const s = JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null')
@@ -368,6 +368,7 @@ export default function ClientOnboarding({ org, isNew = false, plans = [], segme
             plan_type:        selectedPlan?.slug || 'basic',
             product_id:       storeForm.vertical,
             segment:          storeForm.segments[0] || 'geral',
+            max_registers:    limitsByPlan[storeForm.plan_id]?.max_registers || 1,
             is_active:        true,
             customer_status:  'ativo',
           }).select().single()
@@ -445,6 +446,7 @@ export default function ClientOnboarding({ org, isNew = false, plans = [], segme
           plan_type:     selectedPlan?.slug || 'basic',
           product_id:    storeForm.vertical,
           segment:       storeForm.segments[0] || 'geral',
+          max_registers: limitsByPlan[storeForm.plan_id]?.max_registers || 1,
         }).eq('id', oid)
         if (error) throw new Error(error.message)
 
