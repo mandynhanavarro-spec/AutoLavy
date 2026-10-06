@@ -1,11 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Pencil, Trash2, X, Package, AlertTriangle, FlaskConical, Lock, Unlock, Tag, LayoutGrid, List, Camera, Check, ArchiveRestore } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, Package, AlertTriangle, FlaskConical, Lock, Unlock, Tag, LayoutGrid, List, Camera, Check, ArchiveRestore, ChevronRight } from 'lucide-react'
 import { BrowserMultiFormatReader } from '@zxing/browser'
 import { supabase } from '../../../../shared/lib/supabase'
 import { useTenantContext } from '../../../../core/contexts/TenantContext'
 import { useModules } from '../../../../core/hooks/useModules'
 import { usePermissions } from '../../../../core/hooks/usePermissions'
-import { useMultiPDV } from '../../../../core/hooks/useMultiPDV'
 import { friendlyError, parsePlanLimitError } from '../../../../shared/lib/planLimitError'
 
 /* ── helpers ─────────────────────────────────────────────── */
@@ -33,7 +32,7 @@ const DEMOS = [
 ]
 
 const fieldCls = 'w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:ring-2 bg-white'
-const fieldClsXs = 'w-full px-2 py-2 rounded-xl border border-gray-200 text-xs outline-none focus:ring-2 bg-white'
+const fieldClsXs = 'w-full px-1.5 py-2 rounded-xl border border-gray-200 text-xs outline-none focus:ring-2 bg-white [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
 
 const WARRANTY_MONTHS = [3, 6, 12, 24, 36]
 
@@ -56,8 +55,8 @@ function calcWarrantyUntil(from, months) {
 /* ── cadastro rápido (múltiplos produtos) ───────────────────────────── */
 
 function QuickAddModal({
-  orgId, segment, categories, catSegmentMap,
-  gradeConfig, onClose, onSaved, color
+  orgId, segment, categories, orgSegments,
+  onClose, onSaved, onOpenAdvanced, color
 }) {
   const TABS = [
     { key: 'simples', label: 'Produto simples' },
@@ -159,8 +158,6 @@ function QuickAddModal({
   function handleDetected(code) {
     if (scanningKey === 'mobile') {
       updateMobileForm('sku', code)
-    } else if (scanningKey === 'kit') {
-      setKitSku(code)
     } else {
       updateLine(scanningKey, 'barcode', code)
     }
@@ -216,82 +213,18 @@ function QuickAddModal({
     if (savedCount === rows.length) onClose()
   }
 
-  /* ── ABA KIT ── */
-  const [kitName, setKitName]     = useState('')
-  const [kitCatId, setKitCatId]   = useState('')
-  const kitCategories = categories.filter(c => catSegmentMap[c.id] === 'kit')
-
-  const tamanhos = gradeConfig?.tamanhos || []
-  const pacotes  = gradeConfig?.pacotes  || []
-  const combos   = tamanhos.flatMap(t => pacotes.map(p => ({ tamanho: t, pacote: p })))
-
-  const [kitLines, setKitLines] = useState({})
-  const [kitHasSku, setKitHasSku] = useState(false)
-  const [kitSku, setKitSku]       = useState('')
-
-  function updateKitLine(key, field, value) {
-    setKitLines(prev => ({ ...prev, [key]: { ...(prev[key] || {}), [field]: value } }))
-  }
-
-  const validKitLines = combos.filter(c => {
-    const key = c.tamanho + '|' + c.pacote
-    return kitLines[key]?.price
-  })
-
-  async function saveKit() {
-    if (!kitName.trim() || !validKitLines.length) return
-    setSaving(true)
-    try {
-      const prices = validKitLines.map(c =>
-        parseFloat(kitLines[c.tamanho + '|' + c.pacote].price)
-      ).filter(n => !isNaN(n) && n > 0)
-      const finalPrice = prices.length ? Math.min(...prices) : 0
-      const totalStock = validKitLines.reduce((s, c) =>
-        s + parseInt(kitLines[c.tamanho + '|' + c.pacote].stock || '0'), 0)
-
-      const { data: product, error: e1 } = await supabase
-        .from('products')
-        .insert({
-          org_id:         orgId,
-          name:           kitName.trim(),
-          price:          finalPrice,
-          stock_quantity: totalStock,
-          category_id:    kitCatId || null,
-          sku:            kitHasSku && kitSku.trim() ? kitSku.trim() : null,
-        })
-        .select('id')
-        .single()
-      if (e1) throw e1
-
-      const variantRows = validKitLines.map(c => {
-        const key = c.tamanho + '|' + c.pacote
-        const kl  = kitLines[key] || {}
-        return {
-          org_id:         orgId,
-          product_id:     product.id,
-          attributes:     { tamanho: c.tamanho, pacote: c.pacote },
-          stock_quantity: parseInt(kl.stock || '0'),
-          price_override: kl.price ? parseFloat(kl.price) : null,
-          is_active:      true,
-        }
-      })
-      const { error: e2 } = await supabase
-        .from('product_variants')
-        .insert(variantRows)
-      if (e2) throw e2
-
-      setKitHasSku(false)
-      setKitSku('')
-      onSaved()
-      onClose()
-    } catch (err) {
-      alert(isSkuUniqueViolation(err)
-        ? `Já existe um produto com este código de barras: ${kitSku.trim()}.`
-        : 'Erro ao salvar: ' + err.message)
-    } finally {
-      setSaving(false)
-    }
-  }
+  /* ── ABA KIT / VARIAÇÕES ──
+     Atalho: não tem form próprio -- abre o cadastro completo
+     (ProductModal) já no tipo certo (moda, kit ou eletrônicos), que já
+     trata os três corretamente. Evita duplicar a grade aqui. */
+  const VARIATION_TYPES = [
+    { key: 'moda',        label: 'Moda',           desc: 'Cor e tamanho ou número, por variação' },
+    { key: 'kit',         label: 'Kit / Pacote',    desc: 'Tamanho e pacote, por variação' },
+    { key: 'eletronicos', label: 'Eletrônicos',     desc: 'Série, IMEI e garantia' },
+  ]
+  const availableVariationTypes = VARIATION_TYPES.filter(t =>
+    segment === t.key || orgSegments.some(s => s.id === t.key)
+  )
 
   /* ── RENDER ── */
   return (
@@ -656,221 +589,35 @@ function QuickAddModal({
             </div>
           ))}
 
-          {/* ── ABA KIT ── */}
+          {/* ── ABA KIT / VARIAÇÕES (atalho pro cadastro completo) ── */}
           {tab === 'kit' && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[11px] font-bold text-gray-400
-                    uppercase tracking-wide block mb-1.5">Nome</label>
-                  <input
-                    type="text"
-                    placeholder="Ex: Sacola Preta"
-                    value={kitName}
-                    onChange={e => setKitName(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border
-                      border-gray-200 text-sm outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="text-[11px] font-bold text-gray-400
-                    uppercase tracking-wide block mb-1.5">Categoria</label>
-                  <select
-                    value={kitCatId}
-                    onChange={e => setKitCatId(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border
-                      border-gray-200 text-sm outline-none"
-                  >
-                    <option value="">Selecione...</option>
-                    {kitCategories.map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <label className="flex items-center gap-2 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={kitHasSku}
-                  onChange={e => {
-                    setKitHasSku(e.target.checked)
-                    if (!e.target.checked) setKitSku('')
-                  }}
-                  className="w-4 h-4 rounded accent-current"
-                  style={{ accentColor: color }}
-                />
-                <span className="text-xs text-gray-500 font-medium">Tenho código de barras</span>
-              </label>
-              {kitHasSku && (
-                <div>
-                  <label className="text-[11px] font-bold text-gray-400
-                    uppercase tracking-wide block mb-1.5">Código de barras</label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={kitSku}
-                      onChange={e => setKitSku(e.target.value)}
-                      placeholder="Digite o código"
-                      className="flex-1 px-3 py-2 rounded-xl border border-gray-200
-                        text-sm outline-none"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => openScanner('kit')}
-                      className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                      style={{ backgroundColor: color + '15', color: color }}
-                      title="Escanear com a câmera"
-                    >
-                      <Camera size={16} />
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {combos.length === 0 ? (
+            <div className="space-y-3">
+              {availableVariationTypes.length === 0 ? (
                 <div className="text-center py-8 text-sm text-gray-400">
-                  Configure tamanhos e pacotes em{' '}
-                  <strong>Configurações › Grade de Variações</strong>
+                  Esse recurso é pra produtos de Moda, Kit ou Eletrônicos.
+                  Peça pro SuperAdmin ativar um desses segmentos pra sua loja.
                 </div>
-              ) : isMobile ? (
-                <>
-                  {/* Combinações — cards */}
-                  <div className="space-y-2">
-                    {combos.map(c => {
-                      const key = c.tamanho + '|' + c.pacote
-                      const kl  = kitLines[key] || {}
-                      return (
-                        <div key={key} className="rounded-2xl border border-gray-200 p-3 space-y-2">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-gray-100 text-gray-600">
-                              {c.tamanho}
-                            </span>
-                            <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-gray-100 text-gray-600">
-                              {c.pacote}
-                            </span>
-                          </div>
-                          <div className="grid grid-cols-2 gap-2">
-                            <input
-                              type="number"
-                              placeholder="Preço 0,00"
-                              value={kl.price || ''}
-                              onChange={e => updateKitLine(key, 'price', e.target.value)}
-                              className="px-3 py-2 rounded-xl border border-gray-200
-                                text-sm outline-none"
-                            />
-                            <input
-                              type="number"
-                              placeholder="Custo —"
-                              value={kl.cost || ''}
-                              onChange={e => updateKitLine(key, 'cost', e.target.value)}
-                              className="px-3 py-2 rounded-xl border border-gray-200
-                                text-sm outline-none text-gray-400"
-                            />
-                          </div>
-                          <input
-                            type="number"
-                            placeholder="Estoque 0"
-                            value={kl.stock || ''}
-                            onChange={e => updateKitLine(key, 'stock', e.target.value)}
-                            className="w-full px-3 py-2 rounded-xl border border-gray-200
-                              text-sm outline-none"
-                          />
-                        </div>
-                      )
-                    })}
-                  </div>
-
-                  <div className="flex gap-2 pt-2">
-                    <button
-                      onClick={onClose}
-                      className="flex-1 py-2.5 rounded-xl bg-gray-100
-                        text-gray-700 font-bold text-sm"
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      onClick={saveKit}
-                      disabled={saving || !kitName.trim() || !validKitLines.length}
-                      className="flex-2 px-6 py-2.5 rounded-xl text-white
-                        font-bold text-sm disabled:opacity-40"
-                      style={{ backgroundColor: color, flex: 2 }}
-                    >
-                      {saving ? 'Salvando...'
-                        : `Salvar ${kitName || 'produto'} (${validKitLines.length} variações)`}
-                    </button>
-                  </div>
-                </>
               ) : (
                 <>
-                  {/* Cabeçalho */}
-                  <div className="grid gap-2"
-                    style={{ gridTemplateColumns: '1fr 1fr 80px 80px 70px' }}>
-                    {['Tamanho', 'Pacote', 'Preço', 'Custo', 'Estoque'].map(h => (
-                      <span key={h} className="text-[10px] font-bold text-gray-400
-                        uppercase tracking-wide">{h}</span>
-                    ))}
-                  </div>
-
-                  {/* Combinações */}
+                  <p className="text-xs text-gray-400">
+                    Produtos com variações (moda, kit) ou dados técnicos (eletrônicos)
+                    usam o cadastro completo, que já traz os campos certos pra cada tipo.
+                  </p>
                   <div className="space-y-2">
-                    {combos.map(c => {
-                      const key = c.tamanho + '|' + c.pacote
-                      const kl  = kitLines[key] || {}
-                      return (
-                        <div key={key} className="grid gap-2 items-center"
-                          style={{ gridTemplateColumns: '1fr 1fr 80px 80px 70px' }}>
-                          <span className="text-sm text-gray-700 px-3 py-2
-                            bg-gray-50 rounded-xl">{c.tamanho}</span>
-                          <span className="text-sm text-gray-700 px-3 py-2
-                            bg-gray-50 rounded-xl">{c.pacote}</span>
-                          <input
-                            type="number"
-                            placeholder="0,00"
-                            value={kl.price || ''}
-                            onChange={e => updateKitLine(key, 'price', e.target.value)}
-                            className="px-3 py-2 rounded-xl border border-gray-200
-                              text-sm outline-none"
-                          />
-                          <input
-                            type="number"
-                            placeholder="—"
-                            value={kl.cost || ''}
-                            onChange={e => updateKitLine(key, 'cost', e.target.value)}
-                            className="px-3 py-2 rounded-xl border border-gray-200
-                              text-sm outline-none text-gray-400"
-                          />
-                          <input
-                            type="number"
-                            placeholder="0"
-                            value={kl.stock || ''}
-                            onChange={e => updateKitLine(key, 'stock', e.target.value)}
-                            className="px-3 py-2 rounded-xl border border-gray-200
-                              text-sm outline-none"
-                          />
+                    {availableVariationTypes.map(t => (
+                      <button
+                        key={t.key}
+                        type="button"
+                        onClick={() => onOpenAdvanced(t.key)}
+                        className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-2xl border border-gray-200 hover:border-gray-300 text-left transition-colors"
+                      >
+                        <div>
+                          <p className="text-sm font-bold text-gray-800">{t.label}</p>
+                          <p className="text-[11px] text-gray-400">{t.desc}</p>
                         </div>
-                      )
-                    })}
-                  </div>
-
-                  <div className="flex gap-2 pt-2">
-                    <button
-                      onClick={onClose}
-                      className="flex-1 py-2.5 rounded-xl bg-gray-100
-                        text-gray-700 font-bold text-sm"
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      onClick={saveKit}
-                      disabled={saving || !kitName.trim() || !validKitLines.length}
-                      className="flex-2 px-6 py-2.5 rounded-xl text-white
-                        font-bold text-sm disabled:opacity-40"
-                      style={{ backgroundColor: color, flex: 2 }}
-                    >
-                      {saving ? 'Salvando...'
-                        : `Salvar ${kitName || 'produto'} (${validKitLines.length} variações)`}
-                    </button>
+                        <ChevronRight size={16} className="text-gray-300 shrink-0" />
+                      </button>
+                    ))}
                   </div>
                 </>
               )}
@@ -933,11 +680,11 @@ function BarcodeScannerModal({ onDetect, onClose }) {
 /* ── modal ───────────────────────────────────────────────── */
 
 function ProductModal({
-  editing, form, setForm, onSave, onClose, saving, color, categories, hasMultiplePDV,
-  catSegmentMap, tenantSegment, gradeConfig, variants, setVariants, variantAttrMode, setVariantAttrMode, techForm, setTechForm,
+  editing, form, setForm, onSave, onClose, saving, color, categories,
+  catSegmentMap, tenantSegment, initialSegmentHint, gradeConfig, variants, setVariants, variantAttrMode, setVariantAttrMode, techForm, setTechForm,
   orgMinStock,
 }) {
-  const effectiveSegment = (form.category_id && catSegmentMap[form.category_id]) || tenantSegment || 'geral'
+  const effectiveSegment = (form.category_id && catSegmentMap[form.category_id]) || (!editing && initialSegmentHint) || tenantSegment || 'geral'
   const isKit  = effectiveSegment === 'kit'
   const isModa = effectiveSegment === 'moda'
   const hasGradeVariants = isModa || isKit
@@ -982,31 +729,29 @@ function ProductModal({
 
         {/* Base fields */}
         <div className="space-y-3">
-          {hasMultiplePDV && (
-            <Field label="Categoria">
-              <select
-                value={form.category_id}
-                onChange={e => {
-                  const newCatId = e.target.value
-                  const newCat = categories.find(c => c.id === newCatId)
-                  setForm(f => ({
-                    ...f,
-                    category_id: newCatId,
-                    min_stock_alert: String(newCat?.min_stock_alert || orgMinStock),
-                  }))
-                  if (!editing && (catSegmentMap[newCatId] === 'moda' || catSegmentMap[newCatId] === 'kit') && variants.length === 0) {
-                    setVariants([{ _key: Date.now(), id: null, cor: '', attrVal: '', stock_quantity: '', price_override: '' }])
-                  }
-                }}
-                className={fieldCls}
-              >
-                <option value="">Sem categoria</option>
-                {categories.map(c => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-            </Field>
-          )}
+          <Field label="Categoria (opcional)">
+            <select
+              value={form.category_id}
+              onChange={e => {
+                const newCatId = e.target.value
+                const newCat = categories.find(c => c.id === newCatId)
+                setForm(f => ({
+                  ...f,
+                  category_id: newCatId,
+                  min_stock_alert: String(newCat?.min_stock_alert || orgMinStock),
+                }))
+                if (!editing && (catSegmentMap[newCatId] === 'moda' || catSegmentMap[newCatId] === 'kit') && variants.length === 0) {
+                  setVariants([{ _key: Date.now(), id: null, cor: '', attrVal: '', stock_quantity: '', price_override: '' }])
+                }
+              }}
+              className={fieldCls}
+            >
+              <option value="">Sem categoria</option>
+              {categories.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </Field>
 
           <Field label="Nome *">
             <input
@@ -1126,7 +871,7 @@ function ProductModal({
 
             {variants.length > 0 && (
               <div className="space-y-1.5">
-                <div className="grid grid-cols-[1fr_1fr_56px_68px_28px] gap-1 text-[9px] font-bold text-gray-400 uppercase px-0.5">
+                <div className="grid grid-cols-[1fr_1fr_28px_70px_24px] gap-1 text-[9px] font-bold text-gray-400 uppercase px-0.5">
                   <span>{eixo2Label}</span>
                   <span>{eixo1Label}</span>
                   <span>Qtd</span>
@@ -1134,7 +879,7 @@ function ProductModal({
                   <span />
                 </div>
                 {variants.map((v, i) => (
-                  <div key={v._key} className="grid grid-cols-[1fr_1fr_56px_68px_28px] gap-1 items-center">
+                  <div key={v._key} className="grid grid-cols-[1fr_1fr_28px_70px_24px] gap-1 items-center">
                     <select value={v.attrVal} onChange={e => updateVariant(i, 'attrVal', e.target.value)} className={fieldClsXs}>
                       <option value="">{eixo2Placeholder}</option>
                       {eixo2Options.map(o => <option key={o} value={o}>{o}</option>)}
@@ -1160,7 +905,7 @@ function ProductModal({
                     <button
                       type="button"
                       onClick={() => removeVariant(i)}
-                      className="flex items-center justify-center w-7 h-7 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+                      className="flex items-center justify-center w-6 h-7 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
                     >
                       <X size={12} />
                     </button>
@@ -1297,7 +1042,6 @@ export default function Produtos() {
   const { tenant } = useTenantContext()
   const { hasModule } = useModules()
   const { can } = usePermissions()
-  const { hasMultiplePDV } = useMultiPDV()
   const canManage = can('can_manage_products')
   const orgId  = tenant?.id
   // theme_color so e usado se o PLANO ATUAL tiver a feature white_label --
@@ -1308,7 +1052,9 @@ export default function Produtos() {
   const [products, setProducts] = useState([])
   const [loading, setLoading]   = useState(true)
   const [modal, setModal]       = useState(null)   // null | 'new' | product
+  const [createSegmentHint, setCreateSegmentHint] = useState(null)
   const [quickModal, setQuickModal] = useState(false)
+  const [showAddMenu, setShowAddMenu] = useState(false)
   const [form, setForm]         = useState(EMPTY)
   const [saving, setSaving]     = useState(false)
   const [deleting, setDeleting] = useState(null)
@@ -1337,7 +1083,6 @@ export default function Produtos() {
   const archivedProducts = products.filter(p => p.archived_at)
   const catMap         = Object.fromEntries(categories.map(c => [c.id, c.name]))
   const catSegmentMap  = Object.fromEntries(categories.filter(c => c.segment_id).map(c => [c.id, c.segment_id]))
-  const showCategories = hasMultiplePDV || orgSegments.length >= 2
 
   /* load products */
   async function load() {
@@ -1379,7 +1124,7 @@ export default function Produtos() {
   }
 
   useEffect(() => { load() }, [orgId])
-  useEffect(() => { if (showCategories) loadCategories() }, [orgId, showCategories])
+  useEffect(() => { loadCategories() }, [orgId])
   useEffect(() => { loadOrgSegments() }, [orgId])
   useEffect(() => {
     if (!orgId) return
@@ -1407,10 +1152,12 @@ export default function Produtos() {
   }
 
   /* open new / edit */
-  function openNew() {
+  function openNew(segmentHint = null) {
+    setCreateSegmentHint(segmentHint)
     setForm({ ...EMPTY, min_stock_alert: String(effectiveMinStock('')) })
+    const effSeg = segmentHint || segment
     setVariants(
-      (segment === 'moda' || segment === 'kit')
+      (effSeg === 'moda' || effSeg === 'kit')
         ? [{ _key: Date.now(), id: null, cor: '', attrVal: '', stock_quantity: '', price_override: '' }]
         : []
     )
@@ -1419,6 +1166,7 @@ export default function Produtos() {
     setModal('new')
   }
   function openEdit(p) {
+    setCreateSegmentHint(null)
     setForm({
       name:            p.name,
       price:           String(p.price),
@@ -1475,7 +1223,7 @@ export default function Produtos() {
   /* save product */
   async function save() {
     if (!form.name.trim()) return
-    const effectiveSeg = catSegmentMap[form.category_id] || segment || 'geral'
+    const effectiveSeg = catSegmentMap[form.category_id] || (modal === 'new' && createSegmentHint) || segment || 'geral'
     if (effectiveSeg !== 'moda' && effectiveSeg !== 'kit' && !form.price) return
     setSaving(true)
     let finalPrice = parseFloat(form.price || '0')
@@ -1550,15 +1298,15 @@ export default function Produtos() {
         warranty_from: techForm.warranty_from || null,
         warranty_until: warrantyUntil || null,
       }
-      console.log('[debug] payload product_attributes:', attrPayload)
       const { error: attrErr } = await supabase
         .from('product_attributes')
         .upsert(attrPayload, { onConflict: 'product_id' })
-      if (attrErr) console.log('[debug] erro completo:', attrErr)
+      if (attrErr) alert(friendlyError(attrErr, 'Produto salvo, mas não foi possível salvar série/IMEI/garantia: ' + attrErr.message))
     }
 
     setSaving(false)
     setModal(null)
+    setCreateSegmentHint(null)
     load()
   }
 
@@ -1800,15 +1548,38 @@ export default function Produtos() {
           <p className="text-xs text-gray-400 mt-0.5">{activeProducts.length} cadastrado{activeProducts.length !== 1 ? 's' : ''}</p>
         </div>
         {canManage ? (
-          <button
-            onClick={() => setQuickModal(true)}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl
-              border text-sm font-bold transition-colors"
-            style={{ borderColor: color, color: color }}
-          >
-            <Plus size={15} />
-            Produto
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => setShowAddMenu(v => !v)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl
+                border text-sm font-bold transition-colors"
+              style={{ borderColor: color, color: color }}
+            >
+              <Plus size={15} />
+              Produto
+            </button>
+            {showAddMenu && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setShowAddMenu(false)} />
+                <div className="absolute right-0 mt-2 w-60 bg-white rounded-2xl border border-gray-100 shadow-lg overflow-hidden z-20">
+                  <button
+                    onClick={() => { setShowAddMenu(false); setQuickModal(true) }}
+                    className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors"
+                  >
+                    <p className="text-sm font-bold text-gray-800">Cadastro rápido</p>
+                    <p className="text-[11px] text-gray-400">Produto simples, um ou vários de uma vez</p>
+                  </button>
+                  <button
+                    onClick={() => { setShowAddMenu(false); openNew() }}
+                    className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors border-t border-gray-100"
+                  >
+                    <p className="text-sm font-bold text-gray-800">Cadastro completo</p>
+                    <p className="text-[11px] text-gray-400">Moda, kit, eletrônicos e mais opções</p>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         ) : (
           <div className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-gray-100 text-gray-400 text-sm font-bold cursor-not-allowed" title="Sem permissão para gerenciar produtos">
             <Lock size={14} />
@@ -1818,8 +1589,7 @@ export default function Produtos() {
       </div>
 
       {/* ── Categories section ── */}
-      {showCategories && (
-        <div className="mb-5 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="mb-5 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
             <div className="flex items-center gap-2">
               <Tag size={14} style={{ color }} />
@@ -1880,7 +1650,6 @@ export default function Produtos() {
             </div>
           )}
         </div>
-      )}
 
       {/* Search */}
       {products.length > 0 && (
@@ -2023,7 +1792,7 @@ export default function Produtos() {
             {filtered.map(p => {
               const low     = p.stock_quantity > 0 && p.stock_quantity <= p.min_stock_alert
               const out     = p.stock_quantity <= 0
-              const catName = showCategories && p.category_id ? catMap[p.category_id] : null
+              const catName = p.category_id ? catMap[p.category_id] : null
               return (
                 <div
                   key={p.id}
@@ -2204,13 +1973,13 @@ export default function Produtos() {
           form={form}
           setForm={setForm}
           onSave={save}
-          onClose={() => setModal(null)}
+          onClose={() => { setModal(null); setCreateSegmentHint(null) }}
           saving={saving}
           color={color}
           categories={categories}
-          hasMultiplePDV={showCategories}
           catSegmentMap={catSegmentMap}
           tenantSegment={segment}
+          initialSegmentHint={createSegmentHint}
           gradeConfig={gradeConfig}
           variants={variants}
           setVariants={setVariants}
@@ -2228,11 +1997,11 @@ export default function Produtos() {
           orgId={orgId}
           segment={segment}
           categories={categories}
-          catSegmentMap={catSegmentMap}
-          gradeConfig={gradeConfig}
+          orgSegments={orgSegments}
           color={color}
           onClose={() => setQuickModal(false)}
           onSaved={() => load()}
+          onOpenAdvanced={(type) => { setQuickModal(false); openNew(type) }}
         />
       )}
 
