@@ -9,6 +9,7 @@ import WhiteLabelSection from '../../shared/components/WhiteLabelSection'
 import { friendlyError, parsePlanLimitError } from '../../shared/lib/planLimitError'
 import { previewEmployeeEmail } from '../../shared/lib/employeeEmail'
 import CopyButton from '../../shared/components/CopyButton'
+import { suggestNextDueDate } from '../../shared/lib/billingCycle'
 
 /* ── helpers ───────────────────────────────────────────────── */
 
@@ -120,10 +121,24 @@ export default function ClientOnboarding({ org, isNew = false, plans = [], segme
     vertical:         org?.product_id       || 'loja',
     plan_id:          org?.plan_id          || plans[0]?.id || '',
     segments:         [],
-    trial_ends_at:    '',
+    billing_cycle:    'mensal',
+    billing_day:      '',
+    trial_days:       '',
   })
   const [savingStore, setSavingStore] = useState(false)
   const [storeError, setStoreError]   = useState('')
+
+  /* dias de teste padrao vem das configuracoes de cobranca -- so
+     preenche se o formulario ainda nao foi restaurado de sessao
+     (senao sobrescreveria o que o SuperAdmin ja tinha digitado). */
+  useEffect(() => {
+    if (sessionRestored?.store_form) return
+    supabase.from('saas_billing_settings').select('trial_days')
+      .eq('id', '00000000-0000-0000-0000-000000000001').single()
+      .then(({ data }) => {
+        if (data) setStoreForm(f => (f.trial_days === '' ? { ...f, trial_days: String(data.trial_days) } : f))
+      })
+  }, [])
 
   /* Feature 'white_label' do plano selecionado no wizard -- aqui ainda nao
      existe org/sessao da empresa sendo criada, entao nao da pra usar
@@ -373,22 +388,31 @@ export default function ClientOnboarding({ org, isNew = false, plans = [], segme
           const plan = plans.find(p => p.id === storeForm.plan_id)
           // due_date sempre definido -- sem isso a loja nunca seria cobrada
           // nem bloqueada (get_billing_status trata due_date NULL como
-          // "em dia" pra sempre). Vencimento = fim do periodo de teste; se o
-          // SuperAdmin nao escolher uma data, usa 15 dias por padrao (mesma
-          // regra do convite).
-          const trialEndDate = storeForm.trial_ends_at || (() => {
+          // "em dia" pra sempre). Com teste (trial_days > 0): vencimento =
+          // fim do teste. Sem teste (trial_days = 0): primeiro vencimento
+          // alinhado ao dia preferido, via a mesma sugestao usada no form.
+          const trialDays = storeForm.trial_days !== '' ? Number(storeForm.trial_days) : 15
+          const billingDay = storeForm.billing_day ? Number(storeForm.billing_day) : new Date().getDate()
+          let dueDate, trialEndsAtIso
+          if (trialDays > 0) {
             const d = new Date()
-            d.setDate(d.getDate() + 15)
-            return d.toISOString().slice(0, 10)
-          })()
+            d.setDate(d.getDate() + trialDays)
+            dueDate = d.toISOString().slice(0, 10)
+            trialEndsAtIso = new Date(`${dueDate}T23:59:59`).toISOString()
+          } else {
+            dueDate = suggestNextDueDate(billingDay)
+            trialEndsAtIso = null
+          }
           await supabase.from('saas_subscriptions').insert({
             organization_id: newOrg.id,
             plan_id:         storeForm.plan_id,
             billing_amount:  plan?.price || 0,
             status:          'ativa',
             payment_status:  'pendente',
-            due_date:        trialEndDate,
-            trial_ends_at:   new Date(`${trialEndDate}T23:59:59`).toISOString(),
+            due_date:        dueDate,
+            trial_ends_at:   trialEndsAtIso,
+            billing_cycle:   storeForm.billing_cycle || 'mensal',
+            billing_day:     billingDay,
           })
         }
 
@@ -939,13 +963,34 @@ Qualquer dúvida estou aqui! 😊`
                     </select>
                   </div>
 
-                  {/* Periodo de teste (opcional) */}
+                  {/* Cobranca: ciclo, dia preferido e dias de teste */}
                   <div>
-                    <label className="text-[11px] font-bold text-gray-400 uppercase block mb-1.5">Período de teste até (opcional)</label>
+                    <label className="text-[11px] font-bold text-gray-400 uppercase block mb-1.5">Ciclo de cobrança</label>
+                    <select
+                      value={storeForm.billing_cycle}
+                      onChange={e => setStoreForm(f => ({ ...f, billing_cycle: e.target.value }))}
+                      className={inp}
+                    >
+                      <option value="mensal">Mensal</option>
+                      <option value="anual">Anual</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-bold text-gray-400 uppercase block mb-1.5">Dia preferido de vencimento (opcional)</label>
                     <input
-                      type="date"
-                      value={storeForm.trial_ends_at}
-                      onChange={e => setStoreForm(f => ({ ...f, trial_ends_at: e.target.value }))}
+                      type="number" min="1" max="31"
+                      value={storeForm.billing_day}
+                      onChange={e => setStoreForm(f => ({ ...f, billing_day: e.target.value }))}
+                      placeholder="Ex: 10"
+                      className={inp}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-bold text-gray-400 uppercase block mb-1.5">Dias de teste (0 = sem teste)</label>
+                    <input
+                      type="number" min="0"
+                      value={storeForm.trial_days}
+                      onChange={e => setStoreForm(f => ({ ...f, trial_days: e.target.value }))}
                       className={inp}
                     />
                   </div>

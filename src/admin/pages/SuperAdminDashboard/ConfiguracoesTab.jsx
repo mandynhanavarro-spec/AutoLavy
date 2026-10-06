@@ -71,7 +71,10 @@ export default function ConfiguracoesTab({
   const [pwError, setPwError]       = useState('')
   const [pwSuccess, setPwSuccess]   = useState(false)
 
-  const [billing, setBilling] = useState({ pix_key: '', pix_recipient_name: '', qr_code_url: '', support_whatsapp: '' })
+  const [billing, setBilling] = useState({
+    pix_key: '', pix_recipient_name: '', qr_code_url: '', support_whatsapp: '',
+    trial_days: '15', annual_months_charged: '10',
+  })
   const [billingLoading, setBillingLoading] = useState(true)
   const [qrUploading, setQrUploading] = useState(false)
 
@@ -81,6 +84,7 @@ export default function ConfiguracoesTab({
         if (data) setBilling({
           pix_key: data.pix_key || '', pix_recipient_name: data.pix_recipient_name || '',
           qr_code_url: data.qr_code_url || '', support_whatsapp: data.support_whatsapp || '',
+          trial_days: String(data.trial_days ?? 15), annual_months_charged: String(data.annual_months_charged ?? 10),
         })
         setBillingLoading(false)
       })
@@ -94,6 +98,8 @@ export default function ConfiguracoesTab({
         pix_recipient_name: billing.pix_recipient_name.trim() || null,
         qr_code_url: billing.qr_code_url || null,
         support_whatsapp: billing.support_whatsapp.replace(/\D/g, '') || null,
+        trial_days: Number(billing.trial_days) || 0,
+        annual_months_charged: Number(billing.annual_months_charged) || 0,
         updated_at: new Date().toISOString(),
       }).eq('id', BILLING_SETTINGS_ID)
       if (error) throw new Error(getErrorMessage(error, 'Erro ao salvar configuração de cobrança.'))
@@ -276,6 +282,18 @@ export default function ConfiguracoesTab({
                   value={billing.pix_recipient_name} onChange={e => setBilling({ ...billing, pix_recipient_name: e.target.value })} />
                 <input type="text" placeholder="WhatsApp de suporte (só números, com DDI)" className={inp}
                   value={billing.support_whatsapp} onChange={e => setBilling({ ...billing, support_whatsapp: e.target.value })} />
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Dias de teste</label>
+                    <input type="number" min="0" className={inp}
+                      value={billing.trial_days} onChange={e => setBilling({ ...billing, trial_days: e.target.value })} />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Meses cobrados no anual</label>
+                    <input type="number" min="1" max="12" className={inp}
+                      value={billing.annual_months_charged} onChange={e => setBilling({ ...billing, annual_months_charged: e.target.value })} />
+                  </div>
+                </div>
                 <div className="rounded-xl bg-gray-50 p-4 space-y-2">
                   <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400">QR Code PIX</label>
                   {billing.qr_code_url && (

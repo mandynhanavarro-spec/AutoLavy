@@ -3,6 +3,7 @@ import { CheckCircle2, Clock, MessageCircle, Shield } from 'lucide-react'
 import { supabase } from '../../../shared/lib/supabase'
 import { useTenantContext } from '../../contexts/TenantContext'
 import { billingStatusMeta } from '../../../shared/lib/billingStatus'
+import { BILLING_CYCLE_LABEL } from '../../../shared/lib/billingCycle'
 
 function waLink(whatsapp, text) {
   const digits = (whatsapp || '').replace(/\D/g, '')
@@ -126,6 +127,13 @@ export default function MeuPlano() {
     contact?.support_whatsapp,
     `Olá! Sou da loja "${tenant?.name || ''}" e quero mudar de plano.`
   )
+  const cycle = plan?.billing_cycle || 'mensal'
+  const cycleMeta = BILLING_CYCLE_LABEL[cycle] || BILLING_CYCLE_LABEL.mensal
+  const cycleAmount = plan?.billing_amount != null ? plan.billing_amount : plan?.plan_price
+  const mudarAnualHref = waLink(
+    contact?.support_whatsapp,
+    `Olá! Sou da loja "${tenant?.name || ''}" e quero mudar para o plano anual.`
+  )
 
   return (
     <div className="p-4 md:p-6 space-y-5 max-w-3xl">
@@ -140,13 +148,15 @@ export default function MeuPlano() {
 
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
-            <p className="text-xs text-slate-400">Valor mensal</p>
+            <p className="text-xs text-slate-400">Cobrança</p>
             <p className="font-bold text-slate-800">
-              {plan?.plan_price != null ? `R$ ${Number(plan.plan_price).toFixed(2)}` : '—'}
+              {cycleAmount != null ? `${cycleMeta.label} · R$ ${Number(cycleAmount).toFixed(2)}${cycleMeta.suffix}` : '—'}
             </p>
           </div>
           <div>
-            <p className="text-xs text-slate-400">Próximo vencimento</p>
+            <p className="text-xs text-slate-400">
+              {status?.situacao === 'teste' ? 'Período de teste até' : 'Próximo vencimento'}
+            </p>
             <p className="font-bold text-slate-800">
               {status?.due_date ? new Date(status.due_date + 'T00:00:00').toLocaleDateString('pt-BR') : '—'}
             </p>
@@ -268,6 +278,17 @@ export default function MeuPlano() {
             >
               <MessageCircle size={16} />
               Quero mudar de plano
+            </a>
+          )}
+          {cycle === 'mensal' && mudarAnualHref && (
+            <a
+              href={mudarAnualHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full flex items-center justify-center gap-2 rounded-2xl border-2 border-blue-200 text-blue-700 hover:bg-blue-50 px-4 py-3 font-bold text-sm transition-colors"
+            >
+              <MessageCircle size={16} />
+              Quero mudar para o plano anual
             </a>
           )}
         </div>

@@ -7,6 +7,7 @@ import { supabase } from '../../../shared/lib/supabase'
 import { friendlyError } from '../../../shared/lib/planLimitError'
 import { billingStatusMeta } from '../../../shared/lib/billingStatus'
 import { getVerticalBrand } from '../../../shared/lib/verticalBrand'
+import { suggestNextDueDate, suggestCycleAmount } from '../../../shared/lib/billingCycle'
 
 /* ── constants ─────────────────────────────────────────────── */
 
@@ -28,6 +29,7 @@ const initialClientForm = {
   contact_email: '', whatsapp: '', address: '', notes: '',
   login_email: '', initial_password: '', product_id: 'loja', plan_id: '',
   segments: [], categories: [], trial_ends_at: '', due_date: '',
+  billing_cycle: 'mensal', billing_amount: '', billing_day: '',
 }
 
 const STATUS_CLASSES = {
@@ -163,6 +165,15 @@ const ClientesTab = forwardRef(function ClientesTab(
   const subscriptionMap = useMemo(() =>
     subscriptions.reduce((a, s) => ({ ...a, [s.organization_id]: s }), {}),
   [subscriptions])
+
+  /* config global de cobranca (so pra sugerir valor do ciclo anual
+     no formulario -- a regra de calculo em si vive no banco) */
+  const [billingSettings, setBillingSettings] = useState({ trial_days: 15, annual_months_charged: 10 })
+  useEffect(() => {
+    supabase.from('saas_billing_settings').select('trial_days, annual_months_charged')
+      .eq('id', '00000000-0000-0000-0000-000000000001').single()
+      .then(({ data }) => { if (data) setBillingSettings(data) })
+  }, [])
 
   /* aceite dos Termos por cliente (versao + data), exibido na tabela */
   const [termsAcceptanceMap, setTermsAcceptanceMap] = useState({})
@@ -331,6 +342,9 @@ const ClientesTab = forwardRef(function ClientesTab(
       segments: orgSegmentsMap[org.id] || [],
       trial_ends_at: sub?.trial_ends_at ? sub.trial_ends_at.slice(0, 10) : '',
       due_date: sub?.due_date || '',
+      billing_cycle: sub?.billing_cycle || 'mensal',
+      billing_amount: sub?.billing_amount ?? '',
+      billing_day: sub?.billing_day ?? '',
     })
     setShowClientModal(true)
     loadOrgRegisters(org.id)
@@ -475,7 +489,9 @@ const ClientesTab = forwardRef(function ClientesTab(
     if (error) throw new Error(getErrorMessage(error, 'Erro ao atualizar cliente.'))
     const subPayload = {
       organization_id: editingOrganizationId, plan_id: clientForm.plan_id || null,
-      billing_amount: Number(selectedPlan?.price || 0),
+      billing_amount: clientForm.billing_amount !== '' ? Number(clientForm.billing_amount) : Number(selectedPlan?.price || 0),
+      billing_cycle: clientForm.billing_cycle || 'mensal',
+      billing_day: clientForm.billing_day !== '' ? Number(clientForm.billing_day) : null,
       status: sub?.status || 'ativa', payment_status: sub?.payment_status || 'pendente',
       due_date: clientForm.due_date || null,
       trial_ends_at: clientForm.trial_ends_at ? new Date(`${clientForm.trial_ends_at}T23:59:59`).toISOString() : null,
@@ -483,6 +499,7 @@ const ClientesTab = forwardRef(function ClientesTab(
     if (sub?.id) {
       const { error: sErr } = await supabase.from('saas_subscriptions').update({
         plan_id: subPayload.plan_id, billing_amount: subPayload.billing_amount,
+        billing_cycle: subPayload.billing_cycle, billing_day: subPayload.billing_day,
         status: subPayload.status, payment_status: subPayload.payment_status, due_date: subPayload.due_date,
         trial_ends_at: subPayload.trial_ends_at,
       }).eq('id', sub.id)
@@ -1024,20 +1041,54 @@ const ClientesTab = forwardRef(function ClientesTab(
                   </select>
                 </div>
 
-                {/* Vencimento e periodo de teste -- so fazem sentido depois que a assinatura ja existe */}
+                {/* Cobranca -- so faz sentido depois que a assinatura ja existe */}
                 {clientModalMode === 'edit-active' && (
-                  <div className="sm:col-span-2 grid sm:grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <label className="text-xs font-bold text-gray-400 uppercase">Próximo vencimento</label>
-                      <input type="date" className={inp} value={clientForm.due_date}
-                        onChange={e => setClientForm({ ...clientForm, due_date: e.target.value })} />
-                      <p className="text-[11px] text-gray-400">Se ficar em branco e não houver período de teste, a situação aparece como "Sem vencimento".</p>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-xs font-bold text-gray-400 uppercase">Período de teste até (opcional)</label>
-                      <input type="date" className={inp} value={clientForm.trial_ends_at}
-                        onChange={e => setClientForm({ ...clientForm, trial_ends_at: e.target.value })} />
-                      <p className="text-[11px] text-gray-400">Enquanto não vencer, a situação aparece como "Período de teste" e o acesso nunca é bloqueado.</p>
+                  <div className="sm:col-span-2 space-y-4 rounded-2xl bg-gray-50 p-4">
+                    <p className="text-xs font-black text-gray-400 uppercase tracking-wide">Cobrança</p>
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-gray-400 uppercase">Ciclo</label>
+                        <select className={inp} value={clientForm.billing_cycle}
+                          onChange={e => {
+                            const cycle = e.target.value
+                            const selectedPlan = getPlanById(clientForm.plan_id)
+                            const suggested = suggestCycleAmount(cycle, selectedPlan?.price, billingSettings.annual_months_charged)
+                            setClientForm({ ...clientForm, billing_cycle: cycle, billing_amount: String(suggested) })
+                          }}>
+                          <option value="mensal">Mensal</option>
+                          <option value="anual">Anual</option>
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-gray-400 uppercase">Valor do ciclo (R$)</label>
+                        <input type="number" step="0.01" min="0" className={inp} value={clientForm.billing_amount}
+                          onChange={e => setClientForm({ ...clientForm, billing_amount: e.target.value })} />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-gray-400 uppercase">Dia preferido (1-31)</label>
+                        <input type="number" min="1" max="31" className={inp} value={clientForm.billing_day}
+                          onChange={e => {
+                            const day = e.target.value
+                            setClientForm(f => ({
+                              ...f,
+                              billing_day: day,
+                              due_date: day ? suggestNextDueDate(day) : f.due_date,
+                            }))
+                          }} />
+                        <p className="text-[11px] text-gray-400">Ao mudar, sugere a próxima data com esse dia no campo ao lado -- só grava o que você confirmar.</p>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-gray-400 uppercase">Próximo vencimento</label>
+                        <input type="date" className={inp} value={clientForm.due_date}
+                          onChange={e => setClientForm({ ...clientForm, due_date: e.target.value })} />
+                        <p className="text-[11px] text-gray-400">Em branco e sem período de teste = situação "Sem vencimento".</p>
+                      </div>
+                      <div className="space-y-1 sm:col-span-2">
+                        <label className="text-xs font-bold text-gray-400 uppercase">Período de teste até (opcional)</label>
+                        <input type="date" className={inp} value={clientForm.trial_ends_at}
+                          onChange={e => setClientForm({ ...clientForm, trial_ends_at: e.target.value })} />
+                        <p className="text-[11px] text-gray-400">Enquanto não vencer, a situação aparece como "Período de teste" e o acesso nunca é bloqueado.</p>
+                      </div>
                     </div>
                   </div>
                 )}
