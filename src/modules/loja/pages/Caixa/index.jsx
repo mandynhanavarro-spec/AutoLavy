@@ -426,37 +426,39 @@ export default function Caixa() {
   // um código (produto simples ou variação), adiciona direto ao carrinho --
   // produtos arquivados nunca batem (não entram em `products`, já filtrado
   // no carregamento). Busca por nome continua igual, sem passar por aqui.
+  // Devolve o resultado pro leitor da câmera (BarcodeScannerModal):
+  // { ok: false, message } mantém o leitor aberto com o aviso; { close: true }
+  // fecha (escolha de variação); { ok: true, message } segue bipando.
   function handleCodeSubmit(rawCode) {
     const code = (rawCode ?? search).trim()
-    if (!code) return
+    if (!code) return { ok: false, message: '' }
+    const fail = message => { setScanMessage(message); return { ok: false, message } }
     const hit = codeMap[code]
-    if (!hit) {
-      setScanMessage('Código não encontrado')
-      return
-    }
+    if (!hit) return fail('Código não encontrado')
     // sku do produto-pai de um produto com variações: não entra sozinho (o
     // item ficaria sem variação) -- abre a escolha, como no clique no produto.
     const parentVariants = !hit.variant && ['moda', 'kit'].includes(getProductSegment(hit.product))
       ? (variantsByProduct[hit.product.id] || [])
       : []
     if (parentVariants.length > 0) {
-      if (!parentVariants.some(v => v.stock_quantity > 0)) {
-        setScanMessage('Sem estoque')
-        return
-      }
+      if (!parentVariants.some(v => v.stock_quantity > 0)) return fail('Sem estoque')
       setVariantModal({ product: hit.product, variants: parentVariants })
       setSearch('')
       setScanMessage('')
-      return
+      return { close: true }
     }
-    const stock = hit.variant ? hit.variant.stock_quantity : hit.product.stock_quantity
-    if (stock <= 0) {
-      setScanMessage('Sem estoque')
-      return
-    }
+    const stock  = hit.variant ? hit.variant.stock_quantity : hit.product.stock_quantity
+    const key    = hit.variant ? hit.variant.id : hit.product.id
+    const inCart = cart.find(i => i.cartKey === key)?.qty || 0
+    if (stock <= 0) return fail('Sem estoque')
+    if (inCart >= stock) return fail(`Só tem ${stock} em estoque`)
     addItem(hit.product, hit.variant)
     setSearch('')
     setScanMessage('')
+    const label = hit.variant
+      ? `${hit.product.name} · ${Object.values(hit.variant.attributes || {}).filter(Boolean).join(' · ')}`
+      : hit.product.name
+    return { ok: true, message: `${label} (${inCart + 1} no carrinho)` }
   }
 
   useEffect(() => {
@@ -1023,7 +1025,12 @@ export default function Caixa() {
 
       {scannerOpen && (
         <BarcodeScannerModal
-          onDetect={code => { handleCodeSubmit(code); setScannerOpen(false) }}
+          continuous
+          onDetect={code => {
+            const result = handleCodeSubmit(code)
+            if (result.close) setScannerOpen(false)
+            return result
+          }}
           onClose={() => setScannerOpen(false)}
         />
       )}
