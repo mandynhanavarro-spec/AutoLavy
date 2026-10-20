@@ -6,6 +6,9 @@ import { useModules } from '../../../../core/hooks/useModules'
 import { usePermissions } from '../../../../core/hooks/usePermissions'
 import { friendlyError, parsePlanLimitError } from '../../../../shared/lib/planLimitError'
 import BarcodeScannerModal from '../../../../shared/components/BarcodeScannerModal'
+import {
+  resolveProductSegment, orgSegmentIds, defaultSegmentType, segmentTypeOptions,
+} from '../../../../shared/lib/productSegment'
 
 /* ── helpers ─────────────────────────────────────────────── */
 
@@ -21,7 +24,7 @@ function brl(val) {
 }
 
 const EMPTY = {
-  name: '', price: '', cost_price: '', stock_quantity: '', min_stock_alert: '5', sku: '', category_id: '',
+  name: '', price: '', cost_price: '', stock_quantity: '', min_stock_alert: '5', sku: '', category_id: '', segment_id: '',
 }
 
 const DEMOS = [
@@ -60,9 +63,20 @@ function QuickAddModal({
 }) {
   const TABS = [
     { key: 'simples', label: 'Produto simples' },
-    { key: 'kit', label: 'Kit / Variações' },
+    { key: 'kit', label: 'Com variações / técnicos' },
   ]
   const [tab, setTab] = useState('simples')
+
+  // Tipo gravado no produto do cadastro rápido: o da categoria; sem
+  // categoria, o padrão da loja -- só que moda/kit viram geral, porque aqui
+  // não tem grade de variações (é produto simples de verdade).
+  const quickSegmentIds = orgSegmentIds(orgSegments, segment)
+  function quickSegment(categoryId) {
+    const cat = categories.find(c => c.id === categoryId)
+    if (cat?.segment_id) return cat.segment_id
+    const def = defaultSegmentType(quickSegmentIds)
+    return def === 'moda' || def === 'kit' ? 'geral' : def
+  }
   const [saving, setSaving] = useState(false)
 
   /* ── layout mobile vs desktop ── */
@@ -100,6 +114,7 @@ function QuickAddModal({
         stock_quantity:  parseInt(mobileForm.stock || '0'),
         min_stock_alert: mobileForm.minStock ? parseInt(mobileForm.minStock) : 5,
         category_id:     mobileForm.categoryId || null,
+        segment_id:      quickSegment(mobileForm.categoryId),
         sku:             mobileForm.hasSku && mobileForm.sku.trim()
                            ? mobileForm.sku.trim() : null,
       })
@@ -177,6 +192,7 @@ function QuickAddModal({
       stock_quantity: parseInt(l.stock || '0'),
       min_stock_alert: l.min_stock ? parseInt(l.min_stock) : 5,
       category_id:    simpleCatId || null,
+      segment_id:     quickSegment(simpleCatId),
       sku:            hasBarcode && l.barcode.trim() ? l.barcode.trim() : null,
     }))
     // Insere um de cada vez (em vez de um unico INSERT com varias linhas)
@@ -641,10 +657,11 @@ function QuickAddModal({
 
 function ProductModal({
   editing, form, setForm, onSave, onClose, saving, color, categories,
-  catSegmentMap, tenantSegment, initialSegmentHint, gradeConfig, variants, setVariants, variantAttrMode, setVariantAttrMode, techForm, setTechForm,
+  catSegmentMap, tenantSegment, segmentIds, gradeConfig, variants, setVariants, variantAttrMode, setVariantAttrMode, techForm, setTechForm,
   orgMinStock,
 }) {
-  const effectiveSegment = (form.category_id && catSegmentMap[form.category_id]) || (!editing && initialSegmentHint) || tenantSegment || 'geral'
+  const categorySegment  = form.category_id ? catSegmentMap[form.category_id] : null
+  const effectiveSegment = resolveProductSegment(form, catSegmentMap, tenantSegment)
   const isKit  = effectiveSegment === 'kit'
   const isModa = effectiveSegment === 'moda'
   const hasGradeVariants = isModa || isKit
@@ -717,6 +734,37 @@ function ProductModal({
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
+          </Field>
+
+          {/* Tipo de produto: segue a categoria (travado); sem categoria,
+              escolhe entre os segmentos da loja e fica gravado no produto. */}
+          <Field label="Tipo de produto">
+            {categorySegment ? (
+              <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-gray-50 border border-gray-200">
+                <span className="text-sm font-semibold text-gray-700">
+                  {segmentTypeOptions([categorySegment]).find(o => o.id === categorySegment)?.label}
+                </span>
+                <span className="flex items-center gap-1 text-[11px] text-gray-400 shrink-0">
+                  <Lock size={12} /> pela categoria
+                </span>
+              </div>
+            ) : (
+              <select
+                value={effectiveSegment}
+                onChange={e => {
+                  const newSeg = e.target.value
+                  setForm(f => ({ ...f, segment_id: newSeg }))
+                  if (!editing && (newSeg === 'moda' || newSeg === 'kit') && variants.length === 0) {
+                    setVariants([{ _key: Date.now(), id: null, cor: '', attrVal: '', stock_quantity: '', price_override: '', sku_variant: '' }])
+                  }
+                }}
+                className={fieldCls}
+              >
+                {segmentTypeOptions(segmentIds, effectiveSegment).map(o => (
+                  <option key={o.id} value={o.id}>{o.label}</option>
+                ))}
+              </select>
+            )}
           </Field>
 
           <Field label="Nome *">
@@ -1045,7 +1093,6 @@ export default function Produtos() {
   const [products, setProducts] = useState([])
   const [loading, setLoading]   = useState(true)
   const [modal, setModal]       = useState(null)   // null | 'new' | product
-  const [createSegmentHint, setCreateSegmentHint] = useState(null)
   const [quickModal, setQuickModal] = useState(false)
   const [showAddMenu, setShowAddMenu] = useState(false)
   const [form, setForm]         = useState(EMPTY)
@@ -1076,6 +1123,7 @@ export default function Produtos() {
   const archivedProducts = products.filter(p => p.archived_at)
   const catMap         = Object.fromEntries(categories.map(c => [c.id, c.name]))
   const catSegmentMap  = Object.fromEntries(categories.filter(c => c.segment_id).map(c => [c.id, c.segment_id]))
+  const segmentIds     = orgSegmentIds(orgSegments, segment)
 
   /* load products */
   async function load() {
@@ -1083,7 +1131,7 @@ export default function Produtos() {
     setLoading(true)
     const { data } = await supabase
       .from('products')
-      .select('id, name, price, cost_price, stock_quantity, min_stock_alert, sku, is_demo, category_id, archived_at')
+      .select('id, name, price, cost_price, stock_quantity, min_stock_alert, sku, is_demo, category_id, segment_id, archived_at')
       .eq('org_id', orgId)
       .order('name')
     setProducts(data || [])
@@ -1146,9 +1194,8 @@ export default function Produtos() {
 
   /* open new / edit */
   function openNew(segmentHint = null) {
-    setCreateSegmentHint(segmentHint)
-    setForm({ ...EMPTY, min_stock_alert: String(effectiveMinStock('')) })
-    const effSeg = segmentHint || segment
+    const effSeg = segmentHint || defaultSegmentType(segmentIds)
+    setForm({ ...EMPTY, segment_id: effSeg, min_stock_alert: String(effectiveMinStock('')) })
     setVariants(
       (effSeg === 'moda' || effSeg === 'kit')
         ? [{ _key: Date.now(), id: null, cor: '', attrVal: '', stock_quantity: '', price_override: '', sku_variant: '' }]
@@ -1159,7 +1206,6 @@ export default function Produtos() {
     setModal('new')
   }
   function openEdit(p) {
-    setCreateSegmentHint(null)
     setForm({
       name:            p.name,
       price:           String(p.price),
@@ -1168,12 +1214,13 @@ export default function Produtos() {
       min_stock_alert: String(p.min_stock_alert ?? '5'),
       sku:             p.sku ?? '',
       category_id:     p.category_id ?? '',
+      segment_id:      p.segment_id || resolveProductSegment({ ...p, category_id: null }, catSegmentMap, segment),
     })
     setVariants([])
     setVariantAttrMode('tamanho')
     setTechForm({ serial_number: '', imei: '', warranty_months: '', warranty_from: todayISO() })
     setModal(p)
-    const productSeg = catSegmentMap[p.category_id] || segment || 'geral'
+    const productSeg = resolveProductSegment(p, catSegmentMap, segment)
 
     if (productSeg === 'moda' || productSeg === 'kit') {
       supabase.from('product_variants').select('*')
@@ -1217,7 +1264,7 @@ export default function Produtos() {
   /* save product */
   async function save() {
     if (!form.name.trim()) return
-    const effectiveSeg = catSegmentMap[form.category_id] || (modal === 'new' && createSegmentHint) || segment || 'geral'
+    const effectiveSeg = resolveProductSegment(form, catSegmentMap, segment)
     if (effectiveSeg !== 'moda' && effectiveSeg !== 'kit' && !form.price) return
     setSaving(true)
     let finalPrice = parseFloat(form.price || '0')
@@ -1250,6 +1297,7 @@ export default function Produtos() {
       min_stock_alert: parseInt(form.min_stock_alert || '5'),
       sku:             form.sku.trim() || null,
       category_id:     form.category_id || null,
+      segment_id:      effectiveSeg,
     }
 
     let productId
@@ -1309,7 +1357,6 @@ export default function Produtos() {
 
     setSaving(false)
     setModal(null)
-    setCreateSegmentHint(null)
     load()
   }
 
@@ -1485,7 +1532,7 @@ export default function Produtos() {
   async function saveCategory() {
     if (!catForm.name.trim()) return
     setCatSaving(true)
-    const segmentId = catForm.segment_id || 'geral'
+    const segmentId = catForm.segment_id || defaultSegmentType(segmentIds)
     const minStockAlert = catForm.min_stock_alert ? parseInt(catForm.min_stock_alert) : null
     if (catModal === 'new') {
       await supabase.from('categories').insert({
@@ -1602,10 +1649,7 @@ export default function Produtos() {
             {canManage && (
               <button
                 onClick={() => {
-                  const hasModa  = orgSegments.some(s => s.id === 'moda')
-                  const hasGeral = orgSegments.some(s => s.id === 'geral')
-                  const defaultSegment = hasModa ? 'moda' : hasGeral ? 'geral' : 'kit'
-                  setCatForm({ name: '', description: '', segment_id: defaultSegment, min_stock_alert: '' })
+                  setCatForm({ name: '', description: '', segment_id: defaultSegmentType(segmentIds), min_stock_alert: '' })
                   setCatModal('new')
                 }}
                 className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-xl text-white active:scale-95 transition-transform"
@@ -1976,13 +2020,13 @@ export default function Produtos() {
           form={form}
           setForm={setForm}
           onSave={save}
-          onClose={() => { setModal(null); setCreateSegmentHint(null) }}
+          onClose={() => setModal(null)}
           saving={saving}
           color={color}
           categories={categories}
           catSegmentMap={catSegmentMap}
           tenantSegment={segment}
-          initialSegmentHint={createSegmentHint}
+          segmentIds={segmentIds}
           gradeConfig={gradeConfig}
           variants={variants}
           setVariants={setVariants}
@@ -2049,31 +2093,15 @@ export default function Produtos() {
                 <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wide block mb-1.5">
                   Tipo de produto
                 </label>
-                {(() => {
-                  const hasModa  = orgSegments.some(s => s.id === 'moda')
-                  const hasGeral = orgSegments.some(s => s.id === 'geral')
-                  return (
-                    <select
-                      value={catForm.segment_id || (hasModa ? 'moda' : hasGeral ? 'geral' : 'kit')}
-                      onChange={e => setCatForm(f => ({ ...f, segment_id: e.target.value }))}
-                      className={fieldCls}
-                    >
-                      {hasGeral && (
-                        <option value="geral">
-                          Produto único — um preço, um estoque
-                        </option>
-                      )}
-                      {hasModa && (
-                        <option value="moda">
-                          Roupa / Calçado — variação de cor e tamanho
-                        </option>
-                      )}
-                      <option value="kit">
-                        Kit ou Pacote — vários tamanhos e quantidades
-                      </option>
-                    </select>
-                  )
-                })()}
+                <select
+                  value={catForm.segment_id || defaultSegmentType(segmentIds)}
+                  onChange={e => setCatForm(f => ({ ...f, segment_id: e.target.value }))}
+                  className={fieldCls}
+                >
+                  {segmentTypeOptions(segmentIds, catForm.segment_id).map(o => (
+                    <option key={o.id} value={o.id}>{o.label}</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wide block mb-1.5">

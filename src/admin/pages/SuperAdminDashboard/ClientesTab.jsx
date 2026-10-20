@@ -24,6 +24,16 @@ const PRESET_CATEGORIES = {
   fallback:    ['Produtos', 'Serviços', 'Promoções', 'Importados', 'Outros'],
 }
 
+// Segmento principal (organizations.segment) ao editar a loja: mantém o
+// atual se ele continua marcado; senão geral, se marcado; senão o primeiro.
+// Antes era sempre segments[0] -- a ordem de clique decidia, e a Loja Teste
+// virou 'kit' assim.
+function primarySegment(current, segments) {
+  if (current && segments.includes(current)) return current
+  if (segments.includes('geral')) return 'geral'
+  return segments[0] || 'geral'
+}
+
 const initialClientForm = {
   store_name: '', responsible_name: '', company_document: '',
   contact_email: '', whatsapp: '', address: '', notes: '',
@@ -351,6 +361,7 @@ const ClientesTab = forwardRef(function ClientesTab(
       initial_password: '', product_id: org.product_id || 'loja',
       plan_id: sub?.plan_id || org.plan_id || getPlanIdBySlug(org.plan_type || 'basic'),
       segments: orgSegmentsMap[org.id] || [],
+      current_segment: org.segment || '',
       trial_ends_at: sub?.trial_ends_at ? sub.trial_ends_at.slice(0, 10) : '',
       due_date: sub?.due_date || '',
       billing_cycle: sub?.billing_cycle || 'mensal',
@@ -496,7 +507,7 @@ const ClientesTab = forwardRef(function ClientesTab(
       product_id: clientForm.product_id, plan_type: selectedPlan?.slug || 'basic',
       plan_id: clientForm.plan_id || null,
       max_registers: getMaxRegistersByPlanId(clientForm.plan_id),
-      segment: clientForm.segments[0] || 'geral',
+      segment: primarySegment(clientForm.current_segment, clientForm.segments),
     }
     const { error } = await supabase.from('organizations').update(orgPayload).eq('id', editingOrganizationId).select()
     if (error) throw new Error(getErrorMessage(error, 'Erro ao atualizar cliente.'))

@@ -29,6 +29,7 @@ import { useTenantContext } from '../../../../core/contexts/TenantContext'
 import { useModules } from '../../../../core/hooks/useModules'
 import { usePermissions } from '../../../../core/hooks/usePermissions'
 import BarcodeScannerModal from '../../../../shared/components/BarcodeScannerModal'
+import { resolveProductSegment } from '../../../../shared/lib/productSegment'
 
 /* ─── helpers ─────────────────────────────────────────────── */
 
@@ -400,7 +401,7 @@ export default function Caixa() {
 
   const cartItems = cart.reduce((s, i) => s + i.qty, 0)
   const cartTotal = cart.reduce((s, i) => s + itemPrice(i) * i.qty, 0)
-  const getProductSegment = p => catSegmentMap[p?.category_id] || segment || 'geral'
+  const getProductSegment = p => resolveProductSegment(p, catSegmentMap, segment)
 
   const searchRef = useRef(null)
 
@@ -508,7 +509,7 @@ export default function Caixa() {
       const [{ data, error }, { data: catData }] = await Promise.all([
         supabase
           .from('products')
-          .select('id, name, price, cost_price, stock_quantity, min_stock_alert, sku, category_id')
+          .select('id, name, price, cost_price, stock_quantity, min_stock_alert, sku, category_id, segment_id')
           .eq('org_id', orgId)
           .is('archived_at', null)
           .order('name'),
@@ -527,7 +528,7 @@ export default function Caixa() {
       }
       setCatSegmentMap(localCatSegMap)
 
-      const getSeg = p => localCatSegMap[p.category_id] || segment || 'geral'
+      const getSeg = p => resolveProductSegment(p, localCatSegMap, segment)
 
       if (loaded.length > 0) {
         const gradeIds = loaded
