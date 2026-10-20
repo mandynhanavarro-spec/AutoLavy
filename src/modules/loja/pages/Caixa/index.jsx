@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -22,11 +22,13 @@ import {
   History,
   LayoutGrid,
   List,
+  Camera,
 } from 'lucide-react'
 import { supabase } from '../../../../shared/lib/supabase'
 import { useTenantContext } from '../../../../core/contexts/TenantContext'
 import { useModules } from '../../../../core/hooks/useModules'
 import { usePermissions } from '../../../../core/hooks/usePermissions'
+import BarcodeScannerModal from '../../../../shared/components/BarcodeScannerModal'
 
 /* ─── helpers ─────────────────────────────────────────────── */
 
@@ -392,11 +394,75 @@ export default function Caixa() {
   const [mixedModal, setMixedModal]               = useState(false)
   const [confirmedMixedLines, setConfirmedMixedLines] = useState([])
 
+  /* código de barras: busca manual (Enter) e leitor por câmera */
+  const [scannerOpen, setScannerOpen]             = useState(false)
+  const [scanMessage, setScanMessage]             = useState('')
+
   const cartItems = cart.reduce((s, i) => s + i.qty, 0)
   const cartTotal = cart.reduce((s, i) => s + itemPrice(i) * i.qty, 0)
   const getProductSegment = p => catSegmentMap[p?.category_id] || segment || 'geral'
 
   const searchRef = useRef(null)
+
+  // código exato (sku de produto simples OU sku_variant de uma variação) →
+  // { product, variant }. variant fica null pro caso de produto simples.
+  const codeMap = useMemo(() => {
+    const map = {}
+    for (const p of products) {
+      if (p.sku) map[p.sku] = { product: p, variant: null }
+    }
+    for (const [productId, variantList] of Object.entries(variantsByProduct)) {
+      const product = products.find(p => p.id === productId)
+      if (!product) continue
+      for (const v of variantList) {
+        if (v.sku_variant) map[v.sku_variant] = { product, variant: v }
+      }
+    }
+    return map
+  }, [products, variantsByProduct])
+
+  // Enter no campo de busca OU leitura da câmera: se o texto bate EXATO com
+  // um código (produto simples ou variação), adiciona direto ao carrinho --
+  // produtos arquivados nunca batem (não entram em `products`, já filtrado
+  // no carregamento). Busca por nome continua igual, sem passar por aqui.
+  function handleCodeSubmit(rawCode) {
+    const code = (rawCode ?? search).trim()
+    if (!code) return
+    const hit = codeMap[code]
+    if (!hit) {
+      setScanMessage('Código não encontrado')
+      return
+    }
+    // sku do produto-pai de um produto com variações: não entra sozinho (o
+    // item ficaria sem variação) -- abre a escolha, como no clique no produto.
+    const parentVariants = !hit.variant && ['moda', 'kit'].includes(getProductSegment(hit.product))
+      ? (variantsByProduct[hit.product.id] || [])
+      : []
+    if (parentVariants.length > 0) {
+      if (!parentVariants.some(v => v.stock_quantity > 0)) {
+        setScanMessage('Sem estoque')
+        return
+      }
+      setVariantModal({ product: hit.product, variants: parentVariants })
+      setSearch('')
+      setScanMessage('')
+      return
+    }
+    const stock = hit.variant ? hit.variant.stock_quantity : hit.product.stock_quantity
+    if (stock <= 0) {
+      setScanMessage('Sem estoque')
+      return
+    }
+    addItem(hit.product, hit.variant)
+    setSearch('')
+    setScanMessage('')
+  }
+
+  useEffect(() => {
+    if (!scanMessage) return
+    const t = setTimeout(() => setScanMessage(''), 2500)
+    return () => clearTimeout(t)
+  }, [scanMessage])
 
   /* load registers */
   useEffect(() => {
@@ -470,7 +536,7 @@ export default function Caixa() {
         if (gradeIds.length > 0) {
           const { data: vData } = await supabase
             .from('product_variants')
-            .select('id, product_id, attributes, stock_quantity, price_override')
+            .select('id, product_id, attributes, stock_quantity, price_override, sku_variant')
             .eq('org_id', orgId)
             .in('product_id', gradeIds)
             .eq('is_active', true)
@@ -931,16 +997,35 @@ export default function Caixa() {
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleCodeSubmit() } }}
             placeholder="Buscar produto ou código..."
             className="flex-1 text-sm outline-none bg-transparent text-gray-800 placeholder-gray-400"
           />
           {search && (
-            <button onClick={() => setSearch('')} className="text-gray-400">
+            <button onClick={() => { setSearch(''); setScanMessage('') }} className="text-gray-400 shrink-0">
               <X size={14} />
             </button>
           )}
+          <button
+            type="button"
+            onClick={() => setScannerOpen(true)}
+            className="text-gray-400 hover:text-gray-600 shrink-0"
+            title="Escanear código de barras"
+          >
+            <Camera size={16} />
+          </button>
         </div>
+        {scanMessage && (
+          <p className="text-xs font-semibold text-amber-600 mt-1.5 px-1">{scanMessage}</p>
+        )}
       </div>
+
+      {scannerOpen && (
+        <BarcodeScannerModal
+          onDetect={code => { handleCodeSubmit(code); setScannerOpen(false) }}
+          onClose={() => setScannerOpen(false)}
+        />
+      )}
 
       {/* ── period toggle + view toggle ── */}
       <div className="px-4 pb-3 flex items-center justify-between">

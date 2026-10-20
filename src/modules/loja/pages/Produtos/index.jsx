@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { Plus, Pencil, Trash2, X, Package, AlertTriangle, FlaskConical, Lock, Unlock, Tag, LayoutGrid, List, Camera, Check, ArchiveRestore, ChevronRight } from 'lucide-react'
-import { BrowserMultiFormatReader } from '@zxing/browser'
 import { supabase } from '../../../../shared/lib/supabase'
 import { useTenantContext } from '../../../../core/contexts/TenantContext'
 import { useModules } from '../../../../core/hooks/useModules'
 import { usePermissions } from '../../../../core/hooks/usePermissions'
 import { friendlyError, parsePlanLimitError } from '../../../../shared/lib/planLimitError'
+import BarcodeScannerModal from '../../../../shared/components/BarcodeScannerModal'
 
 /* ── helpers ─────────────────────────────────────────────── */
 
@@ -637,46 +637,6 @@ function QuickAddModal({
   )
 }
 
-/* ── scanner de código de barras (câmera) ───────────────────────────── */
-
-function BarcodeScannerModal({ onDetect, onClose }) {
-  const videoRef = useRef(null)
-  const [error, setError] = useState('')
-
-  useEffect(() => {
-    let controls
-    const codeReader = new BrowserMultiFormatReader()
-    codeReader.decodeFromVideoDevice(undefined, videoRef.current, (result, err, ctrl) => {
-      controls = ctrl
-      if (result) {
-        onDetect(result.getText())
-        ctrl.stop()
-      }
-    }).catch(() => setError('Não foi possível acessar a câmera'))
-
-    return () => { if (controls) controls.stop() }
-  }, [])
-
-  return (
-    <div className="fixed inset-0 z-[60] bg-black/80 flex flex-col
-      items-center justify-center p-4">
-      <button onClick={onClose}
-        className="absolute top-4 right-4 w-9 h-9 rounded-full
-          bg-white/20 flex items-center justify-center">
-        <X size={18} className="text-white" />
-      </button>
-      {error ? (
-        <p className="text-white text-sm">{error}</p>
-      ) : (
-        <video ref={videoRef} className="w-full max-w-sm rounded-xl" />
-      )}
-      <p className="text-white/70 text-xs mt-4">
-        Aponte a câmera para o código de barras
-      </p>
-    </div>
-  )
-}
-
 /* ── modal ───────────────────────────────────────────────── */
 
 function ProductModal({
@@ -700,9 +660,15 @@ function ProductModal({
   const eixo1Options     = isKit ? tamanhoOptions : corOptions
   const eixo2Options     = isKit ? pacoteOptions : (variantAttrMode === 'tamanho' ? tamanhoOptions : numeroOptions)
   const hasGradeConfig   = eixo1Options.length > 0 || eixo2Options.length > 0
+  const [scanningVariantIdx, setScanningVariantIdx] = useState(null)
+
+  function handleVariantScan(code) {
+    if (scanningVariantIdx != null) updateVariant(scanningVariantIdx, 'sku_variant', code)
+    setScanningVariantIdx(null)
+  }
 
   function addVariant() {
-    setVariants(v => [...v, { _key: Date.now(), id: null, cor: '', attrVal: '', stock_quantity: '', price_override: '' }])
+    setVariants(v => [...v, { _key: Date.now(), id: null, cor: '', attrVal: '', stock_quantity: '', price_override: '', sku_variant: '' }])
   }
   function removeVariant(idx) {
     setVariants(v => v.filter((_, i) => i !== idx))
@@ -741,7 +707,7 @@ function ProductModal({
                   min_stock_alert: String(newCat?.min_stock_alert || orgMinStock),
                 }))
                 if (!editing && (catSegmentMap[newCatId] === 'moda' || catSegmentMap[newCatId] === 'kit') && variants.length === 0) {
-                  setVariants([{ _key: Date.now(), id: null, cor: '', attrVal: '', stock_quantity: '', price_override: '' }])
+                  setVariants([{ _key: Date.now(), id: null, cor: '', attrVal: '', stock_quantity: '', price_override: '', sku_variant: '' }])
                 }
               }}
               className={fieldCls}
@@ -879,36 +845,56 @@ function ProductModal({
                   <span />
                 </div>
                 {variants.map((v, i) => (
-                  <div key={v._key} className="grid grid-cols-[1fr_1fr_28px_70px_24px] gap-1 items-center">
-                    <select value={v.attrVal} onChange={e => updateVariant(i, 'attrVal', e.target.value)} className={fieldClsXs}>
-                      <option value="">{eixo2Placeholder}</option>
-                      {eixo2Options.map(o => <option key={o} value={o}>{o}</option>)}
-                    </select>
-                    <select value={v.cor} onChange={e => updateVariant(i, 'cor', e.target.value)} className={fieldClsXs}>
-                      <option value="">{eixo1Placeholder}</option>
-                      {eixo1Options.map(o => <option key={o} value={o}>{o}</option>)}
-                    </select>
-                    <input
-                      type="number" min="0"
-                      value={v.stock_quantity}
-                      onChange={e => updateVariant(i, 'stock_quantity', e.target.value)}
-                      placeholder="0"
-                      className={fieldClsXs}
-                    />
-                    <input
-                      type="number" step="0.01" min="0"
-                      value={v.price_override}
-                      onChange={e => updateVariant(i, 'price_override', e.target.value)}
-                      placeholder="—"
-                      className={fieldClsXs}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeVariant(i)}
-                      className="flex items-center justify-center w-6 h-7 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
-                    >
-                      <X size={12} />
-                    </button>
+                  <div key={v._key} className="space-y-1">
+                    <div className="grid grid-cols-[1fr_1fr_28px_70px_24px] gap-1 items-center">
+                      <select value={v.attrVal} onChange={e => updateVariant(i, 'attrVal', e.target.value)} className={fieldClsXs}>
+                        <option value="">{eixo2Placeholder}</option>
+                        {eixo2Options.map(o => <option key={o} value={o}>{o}</option>)}
+                      </select>
+                      <select value={v.cor} onChange={e => updateVariant(i, 'cor', e.target.value)} className={fieldClsXs}>
+                        <option value="">{eixo1Placeholder}</option>
+                        {eixo1Options.map(o => <option key={o} value={o}>{o}</option>)}
+                      </select>
+                      <input
+                        type="number" min="0"
+                        value={v.stock_quantity}
+                        onChange={e => updateVariant(i, 'stock_quantity', e.target.value)}
+                        placeholder="0"
+                        className={fieldClsXs}
+                      />
+                      <input
+                        type="number" step="0.01" min="0"
+                        value={v.price_override}
+                        onChange={e => updateVariant(i, 'price_override', e.target.value)}
+                        placeholder="—"
+                        className={fieldClsXs}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeVariant(i)}
+                        className="flex items-center justify-center w-6 h-7 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="text"
+                        value={v.sku_variant || ''}
+                        onChange={e => updateVariant(i, 'sku_variant', e.target.value)}
+                        placeholder="Código de barras da variação (opcional)"
+                        className={fieldClsXs + ' flex-1'}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setScanningVariantIdx(i)}
+                        className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+                        style={{ backgroundColor: color + '15', color }}
+                        title="Escanear com a câmera"
+                      >
+                        <Camera size={12} />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1023,6 +1009,13 @@ function ProductModal({
           </button>
         </div>
       </div>
+
+      {scanningVariantIdx !== null && (
+        <BarcodeScannerModal
+          onDetect={handleVariantScan}
+          onClose={() => setScanningVariantIdx(null)}
+        />
+      )}
     </div>
   )
 }
@@ -1158,7 +1151,7 @@ export default function Produtos() {
     const effSeg = segmentHint || segment
     setVariants(
       (effSeg === 'moda' || effSeg === 'kit')
-        ? [{ _key: Date.now(), id: null, cor: '', attrVal: '', stock_quantity: '', price_override: '' }]
+        ? [{ _key: Date.now(), id: null, cor: '', attrVal: '', stock_quantity: '', price_override: '', sku_variant: '' }]
         : []
     )
     setVariantAttrMode('tamanho')
@@ -1201,6 +1194,7 @@ export default function Produtos() {
               : (v.attributes?.tamanho ?? v.attributes?.numero ?? ''),
             stock_quantity: String(v.stock_quantity ?? ''),
             price_override: v.price_override != null ? String(v.price_override) : '',
+            sku_variant: v.sku_variant || '',
           })))
         })
     }
@@ -1239,6 +1233,7 @@ export default function Produtos() {
             : { cor: v.cor, [variantAttrMode]: v.attrVal },
           stock_quantity: parseInt(v.stock_quantity || '0'),
           price_override: v.price_override ? parseFloat(v.price_override) : null,
+          sku_variant: v.sku_variant?.trim() || null,
           is_active: true,
         }))
       const prices = variantRows
@@ -1279,11 +1274,19 @@ export default function Produtos() {
     }
 
     if (productId && (effectiveSeg === 'moda' || effectiveSeg === 'kit')) {
-      await supabase.from('product_variants').delete().eq('product_id', productId).eq('org_id', orgId)
-      if (variantRows.length > 0) {
-        await supabase.from('product_variants').insert(
-          variantRows.map(v => ({ ...v, product_id: productId }))
-        )
+      // RPC (nao duas chamadas delete+insert separadas): se o insert falhar
+      // (ex. codigo de barras duplicado), o delete tambem e desfeito -- sem
+      // isso, um produto podia ficar sem nenhuma variacao se a 2a chamada
+      // falhasse depois da 1a ja ter apagado as variacoes antigas.
+      const { error: variantErr } = await supabase.rpc('replace_product_variants', {
+        p_product_id: productId,
+        p_variants: variantRows,
+      })
+      if (variantErr) {
+        alert(friendlyError(variantErr, 'Produto salvo, mas as variações não foram salvas: ' + variantErr.message))
+        setSaving(false)
+        load()
+        return
       }
     }
 

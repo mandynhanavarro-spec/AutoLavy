@@ -32,11 +32,27 @@ export function parsePlanLimitError(message) {
 }
 
 /**
+ * Traduz o erro RAISE EXCEPTION 'SKU_DUPLICADO:<nome do produto>' (triggers
+ * check_sku_variant_vs_product_sku / check_product_sku_vs_sku_variant --
+ * migration sku_variant_conflict_check) em mensagem amigavel. O nome do
+ * produto pode conter ':' -- por isso o regex captura tudo ate o fim da
+ * mensagem, nao so o primeiro token.
+ */
+const SKU_DUP_PATTERN = /SKU_DUPLICADO:(.+)/s
+
+export function parseSkuDuplicateError(message) {
+  if (!message) return null
+  const match = String(message).match(SKU_DUP_PATTERN)
+  if (!match) return null
+  return `Esse código já está em uso no produto ${match[1].trim()}.`
+}
+
+/**
  * Dado um erro do supabase-js (ou uma string), devolve a mensagem amigavel
- * se for um erro de limite de plano, ou a mensagem original (ou `fallback`)
- * caso contrario.
+ * se for um erro de limite de plano ou de código de barras duplicado, ou a
+ * mensagem original (ou `fallback`) caso contrario.
  */
 export function friendlyError(error, fallback = 'Erro ao salvar. Tente novamente.') {
   const raw = typeof error === 'string' ? error : error?.message
-  return parsePlanLimitError(raw) || raw || fallback
+  return parsePlanLimitError(raw) || parseSkuDuplicateError(raw) || raw || fallback
 }
