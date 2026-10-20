@@ -74,6 +74,8 @@ export default function BarcodeScannerModal({ onDetect, onClose, continuous = fa
   onDetectRef.current = onDetect
 
   const [error, setError]           = useState('')
+  const [openedAt]                  = useState(() => Date.now())
+  const [cameraOn, setCameraOn]     = useState(false)
   const [startedAt, setStartedAt]   = useState(null)
   const [now, setNow]               = useState(Date.now())
   const [feedback, setFeedback]     = useState(null)  // { code, ok, message }
@@ -121,6 +123,7 @@ export default function BarcodeScannerModal({ onDetect, onClose, continuous = fa
       if (cancelled) { controls.stop(); return }
       controlsRef.current = controls
       setTorchOk(typeof controls.switchTorch === 'function')
+      setCameraOn(true)
       setStartedAt(Date.now())
     }).catch(() => {
       if (cancelled) return
@@ -135,12 +138,13 @@ export default function BarcodeScannerModal({ onDetect, onClose, continuous = fa
     }
   }, [])
 
-  // relógio das dicas (só enquanto procura)
+  // relógio das dicas e do aviso de 10 s -- conta desde a abertura, pra não
+  // ficar mudo enquanto o navegador espera a permissão da câmera
   useEffect(() => {
-    if (!startedAt || error) return
+    if (error) return
     const t = setInterval(() => setNow(Date.now()), 500)
     return () => clearInterval(t)
-  }, [startedAt, error])
+  }, [error])
 
   // a mensagem da última leitura some sozinha (modo contínuo)
   useEffect(() => {
@@ -162,9 +166,9 @@ export default function BarcodeScannerModal({ onDetect, onClose, continuous = fa
     if (code) handleCode(code, false)
   }
 
-  const elapsed  = startedAt ? now - startedAt : 0
+  const elapsed  = now - (startedAt || openedAt)
   const showSlow = !error && elapsed >= MANUAL_MS
-  const hint = error ? null
+  const hint = error || !cameraOn ? null
     : elapsed >= HINT_2_MS ? 'Precisa de mais luz?'
     : elapsed >= HINT_1_MS ? 'Aproxime ou afaste um pouco'
     : null
@@ -182,7 +186,7 @@ export default function BarcodeScannerModal({ onDetect, onClose, continuous = fa
         <p className="text-white text-sm mb-4">{error}</p>
       ) : (
         <div className="relative w-full max-w-sm">
-          <video ref={videoRef} className="w-full rounded-xl" muted playsInline />
+          <video ref={videoRef} className="w-full min-h-[240px] rounded-xl bg-black" muted playsInline />
           {/* moldura de leitura */}
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
             <div className="relative w-4/5 h-2/5">
@@ -223,9 +227,13 @@ export default function BarcodeScannerModal({ onDetect, onClose, continuous = fa
           </>
         ) : !error && (
           <>
-            <p className="text-white text-sm font-semibold">Procurando código…</p>
+            <p className="text-white text-sm font-semibold">
+              {cameraOn ? 'Procurando código…' : 'Aguardando a câmera…'}
+            </p>
             <p className="text-white/70 text-xs mt-0.5">
-              {hint || 'Aponte a câmera para o código de barras'}
+              {cameraOn
+                ? (hint || 'Aponte a câmera para o código de barras')
+                : 'Se o navegador perguntar, permita o acesso à câmera'}
             </p>
           </>
         )}
