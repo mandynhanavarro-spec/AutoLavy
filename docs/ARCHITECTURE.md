@@ -305,6 +305,13 @@ export default function MinhaPagina() {
 - Nunca gerar/completar códigos 2FA de contas reais.
 - Dados de teste criados em produção devem ser listados no relatório e
   removidos ao final da tarefa.
+- Não usar a sessão de superadmin que estiver aberta no Chrome sem a Mandy
+  autorizar na mensagem. Não contornar confirmações da interface (ex.:
+  gravar no sessionStorage as chaves do modo suporte). Para testar telas de
+  superadmin ou do modo suporte em produção, pedir: a Mandy testa ou
+  autoriza aquele teste específico, numa loja de teste.
+- Lojas e dados de teste criados em produção são listados no relatório e
+  removidos ao final.
 - Nenhuma migration é aplicada antes de aprovação do plano; nenhum commit/push
   sem sinal explícito.
 - Migration que muda assinatura ou comportamento de função chamada pelo
