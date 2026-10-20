@@ -115,6 +115,7 @@ export default function Historico() {
     supabase
       .from('cash_registers')
       .select('id, name')
+      .eq('org_id', orgId)
       .eq('is_active', true)
       .then(({ data }) => setRegisters(data ?? []))
   }, [orgId])
@@ -137,6 +138,7 @@ export default function Historico() {
       supabase
         .from('cash_movements')
         .select('id, register_id, type, amount, reason, created_at')
+        .eq('org_id', orgId)
         .gte('created_at', start)
         .order('created_at', { ascending: false }),
     ]).then(([salesRes, movsRes]) => {
@@ -458,7 +460,9 @@ export default function Historico() {
           {timelineItems.map(item => {
             /* ── movement row ── */
             if (item._kind === 'mov') {
-              const isSangria = item.type === 'sangria'
+              // sangria e estorno (dinheiro devolvido) saem do caixa
+              const isSangria = item.type === 'sangria' || item.type === 'estorno'
+              const movLabel  = item.type === 'estorno' ? 'Estorno' : isSangria ? 'Sangria' : 'Reforço'
               const regInfo   = regColorMap[item.register_id]
               return (
                 <div
@@ -483,7 +487,7 @@ export default function Historico() {
                           ? 'bg-red-100 text-red-700'
                           : 'bg-emerald-100 text-emerald-700'
                       }`}>
-                        {isSangria ? 'Sangria' : 'Reforço'}
+                        {movLabel}
                       </span>
                       {registers.length >= 2 && selectedReg === 'all' && regInfo && (
                         <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-lg shrink-0 ${regInfo.cls}`}>

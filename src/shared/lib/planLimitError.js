@@ -48,11 +48,32 @@ export function parseSkuDuplicateError(message) {
 }
 
 /**
+ * Erros das funcoes de sessao de caixa (open_cash_session /
+ * close_cash_session -- migration cash_sessions_open_close).
+ */
+const CASH_SESSION_ERRORS = {
+  CAIXA_JA_ABERTO:      'Este caixa já está aberto. Atualize a tela para continuar vendendo.',
+  CAIXA_JA_FECHADO:     'Este caixa já foi fechado.',
+  CAIXA_FECHADO:        'Este caixa está fechado. Abra o caixa para vender.',
+  CAIXA_INVALIDO:       'Caixa não encontrado ou desativado.',
+  SESSAO_INVALIDA:      'Não encontramos esta abertura de caixa. Atualize a tela.',
+  SEM_PERMISSAO_ABRIR:  'Você não tem permissão para abrir o caixa.',
+  SEM_PERMISSAO_FECHAR: 'Você não tem permissão para fechar o caixa. Peça a um gerente.',
+  VALOR_INVALIDO:       'Informe um valor válido (zero ou mais).',
+}
+
+export function parseCashSessionError(message) {
+  if (!message) return null
+  const key = Object.keys(CASH_SESSION_ERRORS).find(k => String(message).includes(k))
+  return key ? CASH_SESSION_ERRORS[key] : null
+}
+
+/**
  * Dado um erro do supabase-js (ou uma string), devolve a mensagem amigavel
- * se for um erro de limite de plano ou de código de barras duplicado, ou a
- * mensagem original (ou `fallback`) caso contrario.
+ * se for um erro conhecido (limite de plano, código de barras duplicado,
+ * sessão de caixa), ou a mensagem original (ou `fallback`) caso contrario.
  */
 export function friendlyError(error, fallback = 'Erro ao salvar. Tente novamente.') {
   const raw = typeof error === 'string' ? error : error?.message
-  return parsePlanLimitError(raw) || parseSkuDuplicateError(raw) || raw || fallback
+  return parsePlanLimitError(raw) || parseSkuDuplicateError(raw) || parseCashSessionError(raw) || raw || fallback
 }

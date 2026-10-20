@@ -33,11 +33,6 @@ const METHOD_COLOR = {
   misto:    'bg-amber-100 text-amber-700',
 }
 
-function todayISO() {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
 export default function Dashboard() {
   const { tenant, profile } = useTenantContext()
   const { hasModule } = useModules()
@@ -113,6 +108,7 @@ export default function Dashboard() {
         supabase
           .from('cash_registers')
           .select('id, name')
+          .eq('org_id', orgId)
           .eq('is_active', true),
       ])
 
@@ -137,14 +133,15 @@ export default function Dashboard() {
         setRegSalesMap(map)
 
         try {
-          const { data: closings } = await supabase
-            .from('cash_closings')
+          const { data: openSessions } = await supabase
+            .from('cash_sessions')
             .select('register_id')
             .eq('org_id', orgId)
-            .eq('date', todayISO())
+            .eq('status', 'open')
+          const open = new Set((openSessions || []).map(s => s.register_id))
           const closed = {}
-          for (const c of (closings || [])) {
-            if (c.register_id) closed[c.register_id] = true
+          for (const r of regsData) {
+            if (!open.has(r.id)) closed[r.id] = true
           }
           setRegClosedMap(closed)
         } catch {}

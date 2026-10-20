@@ -23,6 +23,8 @@ import {
   LayoutGrid,
   List,
   Camera,
+  Lock,
+  AlertTriangle,
 } from 'lucide-react'
 import { supabase } from '../../../../shared/lib/supabase'
 import { useTenantContext } from '../../../../core/contexts/TenantContext'
@@ -30,6 +32,10 @@ import { useModules } from '../../../../core/hooks/useModules'
 import { usePermissions } from '../../../../core/hooks/usePermissions'
 import BarcodeScannerModal from '../../../../shared/components/BarcodeScannerModal'
 import { resolveProductSegment } from '../../../../shared/lib/productSegment'
+import { friendlyError } from '../../../../shared/lib/planLimitError'
+import {
+  CloseCashSessionModal, CashDifference, parseMoney, fmtOpenedAt, openedBeforeToday,
+} from '../../components/CashSession'
 
 /* ─── helpers ─────────────────────────────────────────────── */
 
@@ -399,6 +405,16 @@ export default function Caixa() {
   const [scannerOpen, setScannerOpen]             = useState(false)
   const [scanMessage, setScanMessage]             = useState('')
 
+  /* sessão do caixa: obrigatório abrir para vender (uma sessão por caixa) */
+  const canCloseCash = can('can_close_cash')
+  const [session, setSession]               = useState(null)
+  const [sessionLoading, setSessionLoading] = useState(true)
+  const [openingBalance, setOpeningBalance] = useState('')
+  const [openingSession, setOpeningSession] = useState(false)
+  const [openError, setOpenError]           = useState('')
+  const [closeOpen, setCloseOpen]           = useState(false)
+  const [lastClose, setLastClose]           = useState(null)  // resultado do último fechamento
+
   const cartItems = cart.reduce((s, i) => s + i.qty, 0)
   const cartTotal = cart.reduce((s, i) => s + itemPrice(i) * i.qty, 0)
   const getProductSegment = p => resolveProductSegment(p, catSegmentMap, segment)
@@ -466,6 +482,46 @@ export default function Caixa() {
     const t = setTimeout(() => setScanMessage(''), 2500)
     return () => clearTimeout(t)
   }, [scanMessage])
+
+  /* sessão aberta do caixa escolhido */
+  async function loadSession() {
+    if (!orgId || !activeRegister) { setSession(null); setSessionLoading(false); return }
+    setSessionLoading(true)
+    const { data } = await supabase
+      .from('cash_sessions')
+      .select('id, register_id, opened_at, opening_balance, profiles!user_id(full_name)')
+      .eq('org_id', orgId)
+      .eq('register_id', activeRegister.id)
+      .eq('status', 'open')
+      .maybeSingle()
+    setSession(data || null)
+    setSessionLoading(false)
+  }
+
+  useEffect(() => { loadSession() }, [orgId, activeRegister?.id])
+
+  async function openSession() {
+    const value = parseMoney(openingBalance)
+    if (!Number.isFinite(value) || value < 0) {
+      setOpenError('Informe um valor válido (zero ou mais).')
+      return
+    }
+    setOpeningSession(true)
+    setOpenError('')
+    const { error } = await supabase.rpc('open_cash_session', {
+      p_register_id:     activeRegister.id,
+      p_opening_balance: value,
+    })
+    setOpeningSession(false)
+    // CAIXA_JA_ABERTO: alguém abriu este caixa ao mesmo tempo -- só carrega
+    if (error && !String(error.message).includes('CAIXA_JA_ABERTO')) {
+      setOpenError(friendlyError(error, 'Não foi possível abrir o caixa. Tente novamente.'))
+      return
+    }
+    setOpeningBalance('')
+    setLastClose(null)
+    loadSession()
+  }
 
   /* load registers */
   useEffect(() => {
@@ -598,6 +654,8 @@ export default function Caixa() {
 
   function changeRegister() {
     setActiveRegister(null)
+    setSession(null)
+    setLastClose(null)
     sessionStorage.removeItem(getSessionKey(orgId))
     setCart([])
     setSearch('')
@@ -619,6 +677,8 @@ export default function Caixa() {
     const { error } = await supabase.from('cash_movements').insert({
       org_id:      orgId,
       register_id: activeRegister?.id ?? null,
+      // o banco preenche com a sessão aberta AGORA neste caixa
+      // (trg_fill_session_id) -- não prende a uma sessão já fechada
       session_id:  null,
       type:        movType,
       amount,
@@ -626,7 +686,7 @@ export default function Caixa() {
       created_by:  profile?.id ?? null,
     })
     setMovSubmitting(false)
-    if (error) { alert('Erro ao registrar: ' + error.message); return }
+    if (error) { alert(friendlyError(error, 'Erro ao registrar. Tente novamente.')); return }
     setMovType(null)
   }
 
@@ -663,12 +723,25 @@ export default function Caixa() {
     if (!cart.length || submitting) return
     setSubmitting(true)
     try {
+      // o caixa pode ter sido fechado em outro aparelho (Fechamento)
+      const { data: current } = await supabase
+        .from('cash_sessions')
+        .select('status')
+        .eq('id', session?.id)
+        .maybeSingle()
+      if (current?.status !== 'open') {
+        alert('Este caixa foi fechado. Abra o caixa de novo para continuar vendendo.')
+        loadSession()
+        return
+      }
+
       const { data: sale, error: e1 } = await supabase
         .from('sales')
         .insert({
           org_id:         orgId,
           user_id:        profile?.id ?? null,
           register_id:    activeRegister?.id ?? null,
+          session_id:     session.id,
           total_amount:   cartTotal,
           payment_method: isMixed ? 'misto' : payment,
         })
@@ -742,7 +815,7 @@ export default function Caixa() {
       setCart([])
       setCartOpen(false)
     } catch (err) {
-      alert('Erro ao registrar venda: ' + (err.message || 'Tente novamente.'))
+      alert(friendlyError(err, 'Erro ao registrar venda. Tente novamente.'))
     } finally {
       setSubmitting(false)
     }
@@ -777,8 +850,18 @@ export default function Caixa() {
         {registers.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 gap-3 text-center">
             <Monitor size={40} className="text-gray-300" />
-            <p className="text-sm font-semibold text-gray-400">Nenhum caixa ativo</p>
-            <p className="text-xs text-gray-400">Peça ao administrador para ativar um caixa nas configurações.</p>
+            {/* get_my_registers usa a loja do perfil logado: no modo suporte
+                o superadmin não enxerga os caixas do cliente (de propósito) */}
+            {sessionStorage.getItem('support_mode') === 'true' ? (
+              <p className="text-sm font-semibold text-gray-400">
+                No modo suporte, o Caixa fica disponível só para a própria loja.
+              </p>
+            ) : (
+              <>
+                <p className="text-sm font-semibold text-gray-400">Nenhum caixa ativo</p>
+                <p className="text-xs text-gray-400">Peça ao administrador para ativar um caixa nas configurações.</p>
+              </>
+            )}
           </div>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -810,6 +893,90 @@ export default function Caixa() {
             ))}
           </div>
         )}
+      </div>
+    )
+  }
+
+  /* ── abrir caixa (obrigatório para vender) ───────────────── */
+  if (sessionLoading && !session) {
+    return (
+      <div className="flex items-center justify-center min-h-[70vh]">
+        <p className="text-sm text-gray-400">Verificando o caixa...</p>
+      </div>
+    )
+  }
+
+  if (!session) {
+    return (
+      <div className="bg-gray-50 min-h-screen p-4">
+        <div className="flex items-center gap-3 mb-6">
+          <button
+            onClick={() => navigate('/')}
+            className="w-9 h-9 rounded-xl bg-white border border-gray-200 flex items-center justify-center shadow-sm"
+          >
+            <ArrowLeft size={18} className="text-gray-600" />
+          </button>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-lg font-black text-gray-900 leading-tight">Abrir caixa</h1>
+            {registers.length > 1 ? (
+              <button
+                onClick={changeRegister}
+                className="flex items-center gap-1 text-[11px] font-bold mt-0.5 hover:opacity-70"
+                style={{ color }}
+              >
+                <Monitor size={11} />
+                {activeRegister.name}
+                <span className="text-gray-400 font-normal ml-0.5">· trocar</span>
+              </button>
+            ) : (
+              <p className="text-[11px] text-gray-400 mt-0.5">{activeRegister.name}</p>
+            )}
+          </div>
+        </div>
+
+        <div className="max-w-sm mx-auto space-y-4">
+          {lastClose && (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+              <p className="text-sm font-bold text-gray-900">Caixa fechado</p>
+              <p className="text-xs text-gray-500 mt-1">
+                Esperado {brl(lastClose.expected_cash)} · contado {brl(lastClose.counted)} ·{' '}
+                <CashDifference difference={lastClose.difference} />
+              </p>
+            </div>
+          )}
+
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
+            <div>
+              <p className="text-sm font-bold text-gray-900">Para vender, abra o caixa</p>
+              <p className="text-xs text-gray-400 mt-1">
+                Informe o dinheiro que já está na gaveta (troco). Se não tiver, deixe em branco.
+              </p>
+            </div>
+            <div>
+              <label className="text-[11px] font-bold text-gray-500 mb-1 block">Troco inicial (opcional)</label>
+              <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-gray-200 focus-within:ring-2">
+                <span className="text-sm text-gray-400">R$</span>
+                <input
+                  value={openingBalance}
+                  onChange={e => setOpeningBalance(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && openSession()}
+                  inputMode="decimal"
+                  placeholder="0,00"
+                  className="flex-1 text-sm outline-none bg-transparent"
+                />
+              </div>
+            </div>
+            {openError && <p className="text-xs text-red-500">{openError}</p>}
+            <button
+              onClick={openSession}
+              disabled={openingSession}
+              className="w-full py-3.5 rounded-2xl text-white font-black text-base shadow-md disabled:opacity-50 active:scale-[0.98] transition-transform"
+              style={{ backgroundColor: color }}
+            >
+              {openingSession ? 'Abrindo...' : 'Abrir caixa'}
+            </button>
+          </div>
+        </div>
       </div>
     )
   }
@@ -900,6 +1067,10 @@ export default function Caixa() {
 
         <div className="flex-1 min-w-0">
           <h1 className="text-lg font-black text-gray-900 leading-tight">Ponto de Venda</h1>
+          <p className="text-[11px] text-gray-400 mt-0.5">
+            Caixa aberto {fmtOpenedAt(session.opened_at)}
+            {session.profiles?.full_name ? ` por ${session.profiles.full_name}` : ''}
+          </p>
           {registers.length > 1 && (
             <button
               onClick={changeRegister}
@@ -940,6 +1111,17 @@ export default function Caixa() {
           </div>
         )}
 
+        {canCloseCash && (
+          <button
+            onClick={() => setCloseOpen(true)}
+            title="Fechar caixa"
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-white border border-gray-200 text-gray-700 text-[11px] font-bold hover:bg-gray-100 transition-colors shrink-0"
+          >
+            <Lock size={13} />
+            Fechar
+          </button>
+        )}
+
         {cartItems > 0 && (
           <button
             onClick={() => setCartOpen(v => !v)}
@@ -951,6 +1133,19 @@ export default function Caixa() {
           </button>
         )}
       </div>
+
+      {/* caixa aberto desde outro dia: só aviso, não bloqueia */}
+      {openedBeforeToday(session.opened_at) && (
+        <div className="mx-4 mb-3 p-3 bg-amber-50 border border-amber-200 rounded-2xl flex gap-2.5">
+          <AlertTriangle size={16} className="text-amber-500 shrink-0 mt-0.5" />
+          <div className="flex-1 text-xs text-amber-800">
+            Este caixa está aberto desde {fmtOpenedAt(session.opened_at)}.{' '}
+            {canCloseCash
+              ? <>Se começou um novo dia, <button onClick={() => setCloseOpen(true)} className="font-bold underline">feche</button> e abra de novo.</>
+              : 'Se começou um novo dia, peça a um gerente para fechar e abrir de novo.'}
+          </div>
+        </div>
+      )}
 
       {/* ── Mobile quick actions ── */}
       <div className="md:hidden px-4 pb-3 grid grid-cols-2 gap-2.5">
@@ -1733,6 +1928,23 @@ export default function Caixa() {
             </button>
           </div>
         </div>
+      )}
+
+      {/* ── Fechar caixa ─────────────────────────────────────── */}
+      {closeOpen && (
+        <CloseCashSessionModal
+          session={session}
+          registerName={activeRegister.name}
+          color={color}
+          onClose={() => setCloseOpen(false)}
+          onClosed={result => {
+            setCloseOpen(false)
+            setCart([])
+            setCartOpen(false)
+            setLastClose(result)
+            setSession(null)
+          }}
+        />
       )}
 
       {/* ── Variant selection modal ─────────────────────────── */}
