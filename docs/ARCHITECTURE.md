@@ -361,8 +361,11 @@ consegue, direto pela API, o que a tela esconde dele:
   preço, estoque e categorias sem can_manage_products / can_edit_stock;
 - beleza_clients, beleza_config, beleza_services: mesma situação;
 - role_templates da loja: qualquer funcionário edita.
-Itens "alto" (vendas, caixa, audit_logs, cash_registers) estão sendo
-tratados antes do piloto.
+- Cadastro público continua aberto, sem convite: qualquer pessoa cria conta
+  pelo signUp. A conta nasce operador e sem loja (handle_new_user ignora
+  role/org_id dos metadados), sem acesso a nada -- mas ocupa auth.users.
+Itens "alto" (vendas, caixa, audit_logs, cash_registers) resolvidos na
+migration sales_cash_privilege_guard (M1). Preço/estoque de produto: Etapa 4.
 
 ### 12.3 Mensagens e marca
 - O cliente nunca vê erro cru do Postgres nem código técnico. Todo erro
