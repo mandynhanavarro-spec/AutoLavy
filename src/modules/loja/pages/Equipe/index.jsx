@@ -259,15 +259,13 @@ export default function Equipe() {
     setEmpError('')
     setEmpLoading(true)
     const { data, error } = await supabase.functions.invoke('create-employee', {
-      body: { full_name: empName.trim(), email: handle, role: empRole, password: empPass, org_id: orgId, permissions: empPerms },
+      // permissões e modelo gravados pela edge function (servidor) -- um
+      // UPDATE do cliente depois seria barrado se o novo perfil for admin
+      body: { full_name: empName.trim(), email: handle, role: empRole, password: empPass, org_id: orgId, permissions: empPerms, template_id: empTemplate || null },
     })
     setEmpLoading(false)
 
     if (error || data?.error) { setEmpError(parseInvokeError(data, error)); return }
-
-    if (empTemplate && data.userId) {
-      await supabase.from('profiles').update({ template_id: empTemplate }).eq('id', data.userId)
-    }
 
     setEmpDone({ email: data.email, password: empPass })
     load()
@@ -389,6 +387,9 @@ export default function Equipe() {
             const isSelf   = m.id === profile?.id
             const isActive = m.access_status !== 'bloqueado'
             const isSA     = m.role === 'superadmin'
+            // outro admin (sócio/dono): só o superadmin gerencia -- o banco
+            // também recusa (PERFIL_ADMIN_PROTEGIDO), isto só esconde
+            const isOtherAdmin = m.role === 'admin' && profile?.role !== 'superadmin'
 
             return (
               <div
@@ -426,7 +427,7 @@ export default function Equipe() {
                 </div>
 
                 {/* Action buttons */}
-                {!isSelf && !isSA && (
+                {!isSelf && !isSA && !isOtherAdmin && (
                   <div className="flex items-center gap-1.5 shrink-0">
                     <button
                       onClick={() => openEdit(m)}

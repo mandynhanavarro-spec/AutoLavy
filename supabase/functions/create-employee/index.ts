@@ -27,6 +27,33 @@ function respond(body: object) {
 // barra superadmin com loja (trigger profiles_guard).
 const EMPLOYEE_ROLES = ['operador', 'gerente', 'admin']
 
+// Permissões extras aceitas no cadastro (mesmas chaves de usePermissions).
+const PERM_KEYS = [
+  'can_open_cash', 'can_do_sangria', 'can_void_sale', 'can_edit_stock',
+  'can_manage_products', 'can_view_reports', 'can_close_cash',
+]
+
+// Nível de autenticação (aal1/aal2) do token de quem chama. O token já foi
+// validado por admin.auth.getUser antes de chegar aqui.
+function jwtAal(jwt: string): string | null {
+  try {
+    const part = jwt.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
+    const json = atob(part.padEnd(Math.ceil(part.length / 4) * 4, '='))
+    return JSON.parse(json).aal ?? null
+  } catch {
+    return null
+  }
+}
+
+function sanitizePermissions(raw: unknown): Record<string, boolean> | null {
+  if (!raw || typeof raw !== 'object') return null
+  const out: Record<string, boolean> = {}
+  for (const k of PERM_KEYS) {
+    if (k in (raw as Record<string, unknown>)) out[k] = (raw as Record<string, unknown>)[k] === true
+  }
+  return out
+}
+
 function normalizeDomain(name: string): string {
   return (name || '').trim().toLowerCase()
     .normalize('NFD').replace(/\p{M}/gu, '')
@@ -72,8 +99,9 @@ Deno.serve(async (req) => {
   try {
     const rawBody = await req.json()
 
-    // Aceita os nomes enviados pelo frontend: { full_name, email, role, password, org_id }
-    const { full_name, email, role, password, org_id } = rawBody
+    // Aceita os nomes enviados pelo frontend:
+    // { full_name, email, role, password, org_id, permissions?, template_id? }
+    const { full_name, email, role, password, org_id, permissions, template_id } = rawBody
     const name   = full_name
     const handle = email
 
@@ -97,20 +125,33 @@ Deno.serve(async (req) => {
     const { data: { user: caller } } = await admin.auth.getUser(jwt)
     if (!caller) return respond({ error: 'Token inválido.' })
 
-    // Chamador: admin ATIVO de uma loja
+    // Chamador: admin ATIVO de uma loja, ou superadmin ATIVO
     const { data: cp } = await admin
       .from('profiles')
       .select('role, org_id, access_status')
       .eq('id', caller.id)
       .single()
 
-    if (!cp || cp.role !== 'admin' || cp.access_status !== 'ativo' || !cp.org_id) {
+    if (!cp || !['admin', 'superadmin'].includes(cp.role) || cp.access_status !== 'ativo') {
       return respond({ error: 'Apenas o administrador da loja pode criar funcionários.' })
     }
+    // superadmin só age com o autenticador confirmado nesta sessão (aal2)
+    if (cp.role === 'superadmin' && jwtAal(jwt) !== 'aal2') {
+      return respond({ error: 'Confirme o código do autenticador para continuar.' })
+    }
 
-    // A loja vem SEMPRE do perfil de quem chama, nunca do corpo do pedido.
-    if (org_id && org_id !== cp.org_id) return respond({ error: 'Acesso negado a esta organização.' })
-    const orgId: string = cp.org_id
+    // Admin: a loja vem SEMPRE do perfil dele, nunca do corpo do pedido.
+    // Superadmin (Com Implementação / suporte): não tem loja no perfil, então
+    // informa a loja no corpo -- validada abaixo (precisa existir).
+    let orgId: string
+    if (cp.role === 'admin') {
+      if (!cp.org_id) return respond({ error: 'Acesso negado a esta organização.' })
+      if (org_id && org_id !== cp.org_id) return respond({ error: 'Acesso negado a esta organização.' })
+      orgId = cp.org_id
+    } else {
+      if (!org_id) return respond({ error: 'Campos obrigatórios ausentes.' })
+      orgId = org_id
+    }
 
     // Busca o slug da org -- e a base do dominio ficticio, sempre unico
     // (ja carrega sufixo quando ha conflito de nome no cadastro da loja).
@@ -123,6 +164,21 @@ Deno.serve(async (req) => {
     if (!org?.slug) {
       return respond({ error: 'Organização não encontrada ou sem slug definido.' })
     }
+
+    // Modelo de cargo: global (org_id nulo) ou da própria loja
+    let templateId: string | null = null
+    if (template_id) {
+      const { data: tpl } = await admin
+        .from('role_templates')
+        .select('id, org_id')
+        .eq('id', template_id)
+        .single()
+      if (!tpl || (tpl.org_id && tpl.org_id !== orgId)) {
+        return respond({ error: 'Modelo de cargo inválido.' })
+      }
+      templateId = tpl.id
+    }
+    const cleanPermissions = sanitizePermissions(permissions)
 
     // Se o handle ja e um email completo (contem @), usa direto. Caso
     // contrario, monta <login>@<slug-da-org>.local, resolvendo colisao de
@@ -161,6 +217,8 @@ Deno.serve(async (req) => {
       full_name:     name.trim(),
       role,
       access_status: 'ativo',
+      ...(cleanPermissions ? { permissions: cleanPermissions } : {}),
+      ...(templateId ? { template_id: templateId } : {}),
     })
 
     if (profileErr) {
