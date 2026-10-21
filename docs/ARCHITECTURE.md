@@ -348,6 +348,21 @@ Cada regra existe porque o problema já aconteceu em produção ou quase.
 - Regras de negócio que protegem receita ou dados (limites de plano, aceite de
   termos, isolamento entre lojas) são aplicadas NO BANCO (trigger, função,
   RLS). O frontend só traduz o erro.
+- Perfil, cargo, loja e permissões só mudam por trigger/RPC com validação;
+  nunca confiar em user_metadata, em parâmetros de org/cargo, nem só na
+  checagem da tela. (profiles_guard e organizations_guard: o servidor é
+  reconhecido por current_user = postgres/service_role -- função SECURITY
+  DEFINER nunca recebe parâmetro que decida perfil, loja ou cargo.)
+
+#### Dívida de segurança conhecida (resolver na 1ª semana do piloto)
+Hoje a RLS só isola por loja; dentro da loja, qualquer funcionário logado
+consegue, direto pela API, o que a tela esconde dele:
+- products, categories, product_variants, product_attributes: alterar
+  preço, estoque e categorias sem can_manage_products / can_edit_stock;
+- beleza_clients, beleza_config, beleza_services: mesma situação;
+- role_templates da loja: qualquer funcionário edita.
+Itens "alto" (vendas, caixa, audit_logs, cash_registers) estão sendo
+tratados antes do piloto.
 
 ### 12.3 Mensagens e marca
 - O cliente nunca vê erro cru do Postgres nem código técnico. Todo erro
