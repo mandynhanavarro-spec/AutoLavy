@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Palette, Upload, Save, AlertTriangle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { friendlyError } from '../lib/planLimitError'
 import { useTenantContext } from '../../core/contexts/TenantContext'
 import { useModules } from '../../core/hooks/useModules'
 
@@ -62,7 +63,9 @@ export default function WhiteLabelSection({ org, forceEnabled } = {}) {
   const effectiveOrg = org || tenant
   const orgId = effectiveOrg?.id
   const enabled = forceEnabled ?? hasModule('white_label')
-  const isAdmin = ['admin', 'gerente', 'superadmin'].includes(profile?.role)
+  // só o dono (admin) altera a marca -- o banco barra os demais
+  // (organizations_guard)
+  const isAdmin = ['admin', 'superadmin'].includes(profile?.role)
 
   const [logoUrl, setLogoUrl]           = useState(effectiveOrg?.logo_url || '')
   const [themeColor, setThemeColor]     = useState(effectiveOrg?.theme_color || DEFAULT_THEME_COLOR)
@@ -154,7 +157,7 @@ export default function WhiteLabelSection({ org, forceEnabled } = {}) {
 
     setUploading(false)
     if (updateErr) {
-      setUploadError(updateErr.message || 'Logo enviado, mas houve erro ao salvar.')
+      setUploadError(friendlyError(updateErr, 'Logo enviado, mas houve erro ao salvar.'))
       return
     }
     setLogoUrl(bustedUrl)
@@ -173,7 +176,7 @@ export default function WhiteLabelSection({ org, forceEnabled } = {}) {
       })
       .eq('id', orgId)
     setSaving(false)
-    if (error) { setSaveError(error.message); return }
+    if (error) { setSaveError(friendlyError(error)); return }
     setSaved(true)
     setTimeout(() => setSaved(false), 3000)
   }

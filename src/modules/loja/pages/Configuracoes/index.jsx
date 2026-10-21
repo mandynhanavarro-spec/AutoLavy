@@ -354,7 +354,7 @@ export default function Configuracoes() {
       .eq('id', orgId)
     setSavingStore(false)
 
-    if (error) { setStoreError(error.message); return }
+    if (error) { setStoreError(friendlyError(error)); return }
 
     setStoreSaved(true)
     setTimeout(() => setStoreSaved(false), 3000)

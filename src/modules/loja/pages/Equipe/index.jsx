@@ -9,7 +9,7 @@ import { supabase } from '../../../../shared/lib/supabase'
 import { useTenantContext } from '../../../../core/contexts/TenantContext'
 import { useModules } from '../../../../core/hooks/useModules'
 import { PERM_LABELS, ALL_PERM_KEYS, DEFAULT_PERMISSIONS } from '../../../../core/hooks/usePermissions'
-import { parsePlanLimitError } from '../../../../shared/lib/planLimitError'
+import { parsePlanLimitError, friendlyError } from '../../../../shared/lib/planLimitError'
 import { previewEmployeeEmail } from '../../../../shared/lib/employeeEmail'
 
 /* ── constants ───────────────────────────────────────────── */
@@ -292,7 +292,7 @@ export default function Equipe() {
       .eq('id', editTarget.id)
       .eq('org_id', orgId)
     setEditSaving(false)
-    if (error) { setEditError(error.message); return }
+    if (error) { setEditError(friendlyError(error)); return }
     setMembers(prev => prev.map(m => m.id === editTarget.id
       ? { ...m, role: editRole, permissions: editPerms, template_id: editTemplate || null }
       : m))

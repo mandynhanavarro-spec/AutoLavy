@@ -62,6 +62,24 @@ const CASH_SESSION_ERRORS = {
   VALOR_INVALIDO:       'Informe um valor válido (zero ou mais).',
 }
 
+/**
+ * Erros dos triggers de seguranca profiles_guard / organizations_guard
+ * (migrations profiles_privilege_guard / organizations_privilege_guard).
+ */
+const PERMISSION_ERRORS = {
+  PERFIL_SUPERADMIN_COM_LOJA: 'Esse cargo não pode ser usado para funcionários da loja.',
+  PERFIL_CAMPO_PROTEGIDO:     'Você não pode alterar esse dado. Peça ao administrador da loja.',
+  PERFIL_SEM_PERMISSAO:       'Só o administrador da loja pode alterar a equipe.',
+  LOJA_CAMPO_PROTEGIDO:       'Esse dado da loja só pode ser alterado pelo suporte.',
+  LOJA_SEM_PERMISSAO:         'Só o administrador da loja pode alterar as configurações.',
+}
+
+export function parsePermissionError(message) {
+  if (!message) return null
+  const key = Object.keys(PERMISSION_ERRORS).find(k => String(message).includes(k))
+  return key ? PERMISSION_ERRORS[key] : null
+}
+
 export function parseCashSessionError(message) {
   if (!message) return null
   const key = Object.keys(CASH_SESSION_ERRORS).find(k => String(message).includes(k))
@@ -75,5 +93,5 @@ export function parseCashSessionError(message) {
  */
 export function friendlyError(error, fallback = 'Erro ao salvar. Tente novamente.') {
   const raw = typeof error === 'string' ? error : error?.message
-  return parsePlanLimitError(raw) || parseSkuDuplicateError(raw) || parseCashSessionError(raw) || raw || fallback
+  return parsePlanLimitError(raw) || parseSkuDuplicateError(raw) || parseCashSessionError(raw) || parsePermissionError(raw) || raw || fallback
 }
