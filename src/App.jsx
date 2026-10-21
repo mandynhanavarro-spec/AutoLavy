@@ -471,6 +471,9 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [latestTermsAcceptance, setLatestTermsAcceptance] = useState(null)
   const [billingStatus, setBillingStatus] = useState(null)
+  // nível de autenticação do superadmin (aal1/aal2) -- o modo suporte exige
+  // o autenticador confirmado, como o SuperAdmin
+  const [aal, setAal] = useState(null)
   const currentUserIdRef = useRef(null)
 
   useEffect(() => {
@@ -493,6 +496,11 @@ export default function App() {
         .select('*')
         .eq('id', currentSession.user.id)
         .single()
+
+      if (loadedProfile?.role === 'superadmin') {
+        const { data: aalData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
+        if (mounted) setAal(aalData?.currentLevel ?? null)
+      }
 
       const _supportOrgId   = sessionStorage.getItem('support_org_id')
       const _isSupportMode  = sessionStorage.getItem('support_mode') === 'true'
@@ -591,6 +599,13 @@ export default function App() {
         return
       }
 
+      // código do autenticador confirmado: a sessão vira aal2 e o banco
+      // passa a reconhecer o superadmin -- recarrega loja/perfil
+      if (event === 'MFA_CHALLENGE_VERIFIED') {
+        loadUserContext(nextSession)
+        return
+      }
+
       if (event === 'SIGNED_IN') {
         const nextUserId = nextSession?.user?.id
         if (nextUserId && nextUserId !== currentUserIdRef.current) {
@@ -655,6 +670,18 @@ export default function App() {
               </Routes>
             </S>
           </Router>
+        </MFAGate>
+      </TenantProvider>
+    )
+  }
+
+  // ── SuperAdmin no modo suporte: exige o autenticador (aal2) antes de
+  // qualquer outra tela -- sem isso o banco não o reconhece como superadmin
+  if (session && profile?.role === 'superadmin' && supportMode && aal !== 'aal2') {
+    return (
+      <TenantProvider value={{ tenant: null, modules: [], profile, loading: false }}>
+        <MFAGate mode="required">
+          <div className="h-screen flex items-center justify-center">Carregando...</div>
         </MFAGate>
       </TenantProvider>
     )

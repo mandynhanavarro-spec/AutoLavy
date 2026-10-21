@@ -15,6 +15,20 @@ function respond(body: object) {
   })
 }
 
+// Nível de autenticação (aal1/aal2) do token de quem chama. O token já foi
+// validado por admin.auth.getUser antes de chegar aqui. Superadmin só age
+// com o autenticador confirmado nesta sessão (aal2).
+function jwtAal(jwt: string): string | null {
+  try {
+    const part = jwt.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
+    const json = atob(part.padEnd(Math.ceil(part.length / 4) * 4, '='))
+    return JSON.parse(json).aal ?? null
+  } catch {
+    return null
+  }
+}
+const MFA_ERROR = 'Confirme o código do autenticador para continuar.'
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
 
@@ -51,6 +65,7 @@ Deno.serve(async (req) => {
     if (!cp || cp.role !== 'superadmin') {
       return respond({ error: 'Apenas o SuperAdmin pode redefinir a senha do dono da organização.' })
     }
+    if (jwtAal(jwt) !== 'aal2') return respond({ error: MFA_ERROR })
 
     // Encontrar o dono: primeiro admin criado nessa org (created_at ASC garante o original)
     const { data: ownerProfile, error: profileErr } = await admin

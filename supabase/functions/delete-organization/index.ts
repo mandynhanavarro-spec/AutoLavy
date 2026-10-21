@@ -13,6 +13,20 @@ function respond(body: object) {
   })
 }
 
+// Nível de autenticação (aal1/aal2) do token de quem chama. O token já foi
+// validado por admin.auth.getUser antes de chegar aqui. Superadmin só age
+// com o autenticador confirmado nesta sessão (aal2).
+function jwtAal(jwt: string): string | null {
+  try {
+    const part = jwt.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
+    const json = atob(part.padEnd(Math.ceil(part.length / 4) * 4, '='))
+    return JSON.parse(json).aal ?? null
+  } catch {
+    return null
+  }
+}
+const MFA_ERROR = 'Confirme o código do autenticador para continuar.'
+
 async function del(
   admin: ReturnType<typeof createClient>,
   table: string,
@@ -57,6 +71,7 @@ Deno.serve(async (req) => {
     if (cp?.role !== 'superadmin') {
       return respond({ error: 'Apenas superadmins podem excluir organizações.' })
     }
+    if (jwtAal(jwt) !== 'aal2') return respond({ error: MFA_ERROR })
 
     // Verificar senha server-side (não afeta a sessão do browser)
     const anonClient = createClient(
