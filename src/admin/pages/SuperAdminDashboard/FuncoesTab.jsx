@@ -1,20 +1,12 @@
 import { forwardRef, useEffect, useImperativeHandle, useState } from 'react'
 import { Pencil, Trash2, X } from 'lucide-react'
 import { supabase } from '../../../shared/lib/supabase'
+// mesma lista de permissões da loja (uma regra só)
+import { PERM_LABELS, ALL_PERM_KEYS } from '../../../core/hooks/usePermissions'
 
 /* ── constants ─────────────────────────────────────────────── */
 
-const PERM_LABELS = {
-  can_open_cash:       'Abrir caixa (PDV)',
-  can_do_sangria:      'Fazer sangria',
-  can_void_sale:       'Cancelar / Estornar venda',
-  can_edit_stock:      'Editar estoque',
-  can_manage_products: 'Gerenciar produtos',
-  can_view_reports:    'Ver relatórios',
-  can_close_cash:      'Fechar caixa',
-}
-const ALL_PERM_KEYS = Object.keys(PERM_LABELS)
-const EMPTY_PERMS = { can_void_sale: false, can_edit_stock: false, can_open_cash: true, can_do_sangria: false, can_view_reports: false, can_close_cash: false, can_manage_products: false }
+const EMPTY_PERMS = { can_void_sale: false, can_edit_stock: false, can_open_cash: true, can_do_sangria: false, can_view_reports: false, can_close_cash: false, can_manage_products: false, can_edit_prices: false }
 
 const initialTemplateForm = { name: '', description: '', base_role: 'operador', permissions: { ...EMPTY_PERMS }, is_default: false }
 

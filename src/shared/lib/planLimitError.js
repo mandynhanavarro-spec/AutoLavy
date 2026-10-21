@@ -75,6 +75,10 @@ const PERMISSION_ERRORS = {
   LOJA_SEM_PERMISSAO:         'Só o administrador da loja pode alterar as configurações.',
   VENDA_SEM_PERMISSAO:        'Você não tem permissão para estornar ou alterar vendas. Fale com o responsável.',
   VENDA_CAMPO_PROTEGIDO:      'Esta venda não pode ser alterada.',
+  SEM_PERMISSAO_PRECO:        'Você não tem permissão para alterar preços. Fale com o responsável.',
+  SEM_PERMISSAO_PRODUTOS:     'Você não tem permissão para cadastrar ou alterar produtos. Fale com o responsável.',
+  // código de barras repetido entre variações (índice único)
+  product_variants_org_sku_variant_key: 'Esse código de barras já está em uso em outra variação.',
   // recusa genérica da RLS (ex.: lançar movimento sem permissão)
   'row-level security':       'Você não tem permissão para esta ação. Fale com o responsável.',
 }

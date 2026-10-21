@@ -8,7 +8,7 @@ import {
 import { supabase } from '../../../../shared/lib/supabase'
 import { useTenantContext } from '../../../../core/contexts/TenantContext'
 import { useModules } from '../../../../core/hooks/useModules'
-import { PERM_LABELS, ALL_PERM_KEYS, DEFAULT_PERMISSIONS } from '../../../../core/hooks/usePermissions'
+import { PERM_LABELS, ALL_PERM_KEYS, DEFAULT_PERMISSIONS, STORED_WINS_KEYS, effectivePermission } from '../../../../core/hooks/usePermissions'
 import { parsePlanLimitError, friendlyError } from '../../../../shared/lib/planLimitError'
 import { previewEmployeeEmail } from '../../../../shared/lib/employeeEmail'
 
@@ -275,7 +275,12 @@ export default function Equipe() {
   function openEdit(member) {
     setEditTarget(member)
     setEditRole(member.role)
-    setEditPerms({ ...DEFAULT_PERMISSIONS, ...(member.permissions || {}) })
+    // chaves em que o valor salvo vence (Alterar preços) mostram o valor
+    // efetivo -- sem a chave salva, o padrão do cargo
+    const effective = Object.fromEntries(
+      STORED_WINS_KEYS.map(k => [k, effectivePermission(member.role, member.permissions, k)])
+    )
+    setEditPerms({ ...DEFAULT_PERMISSIONS, ...(member.permissions || {}), ...effective })
     setEditTemplate(member.template_id || '')
     setEditError('')
   }

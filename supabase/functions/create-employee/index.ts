@@ -30,7 +30,7 @@ const EMPLOYEE_ROLES = ['operador', 'gerente', 'admin']
 // Permissões extras aceitas no cadastro (mesmas chaves de usePermissions).
 const PERM_KEYS = [
   'can_open_cash', 'can_do_sangria', 'can_void_sale', 'can_edit_stock',
-  'can_manage_products', 'can_view_reports', 'can_close_cash',
+  'can_manage_products', 'can_view_reports', 'can_close_cash', 'can_edit_prices',
 ]
 
 // Nível de autenticação (aal1/aal2) do token de quem chama. O token já foi

@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Pencil, Trash2, X, Package, AlertTriangle, FlaskConical, Lock, Unlock, Tag, LayoutGrid, List, Camera, Check, ArchiveRestore, ChevronRight } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, Package, AlertTriangle, FlaskConical, Lock, Unlock, Tag, LayoutGrid, List, Camera, Check, ArchiveRestore, ChevronRight, History, DollarSign } from 'lucide-react'
 import { supabase } from '../../../../shared/lib/supabase'
 import { useTenantContext } from '../../../../core/contexts/TenantContext'
 import { useModules } from '../../../../core/hooks/useModules'
 import { usePermissions } from '../../../../core/hooks/usePermissions'
 import { friendlyError, parsePlanLimitError } from '../../../../shared/lib/planLimitError'
 import BarcodeScannerModal from '../../../../shared/components/BarcodeScannerModal'
+import PriceOnlyModal from './PriceOnlyModal'
+import ChangeHistoryModal from './ChangeHistoryModal'
 import {
   resolveProductSegment, orgSegmentIds, defaultSegmentType, segmentTypeOptions,
 } from '../../../../shared/lib/productSegment'
@@ -658,8 +660,11 @@ function QuickAddModal({
 function ProductModal({
   editing, form, setForm, onSave, onClose, saving, color, categories,
   catSegmentMap, tenantSegment, segmentIds, gradeConfig, variants, setVariants, variantAttrMode, setVariantAttrMode, techForm, setTechForm,
-  orgMinStock,
+  orgMinStock, canEditPrices,
 }) {
+  // preço/custo de produto JÁ cadastrado (e de variação já existente) só com
+  // can_edit_prices -- o banco também recusa (SEM_PERMISSAO_PRECO)
+  const lockPrice = editing && !canEditPrices
   const categorySegment  = form.category_id ? catSegmentMap[form.category_id] : null
   const effectiveSegment = resolveProductSegment(form, catSegmentMap, tenantSegment)
   const isKit  = effectiveSegment === 'kit'
@@ -809,7 +814,8 @@ function ProductModal({
                   value={form.price}
                   onChange={e => setForm(f => ({ ...f, price: e.target.value }))}
                   placeholder="0,00"
-                  className={fieldCls}
+                  disabled={lockPrice}
+                  className={fieldCls + (lockPrice ? ' bg-gray-50 text-gray-400' : '')}
                 />
               </Field>
               <Field label="Custo">
@@ -818,10 +824,14 @@ function ProductModal({
                   value={form.cost_price}
                   onChange={e => setForm(f => ({ ...f, cost_price: e.target.value }))}
                   placeholder="0,00"
-                  className={fieldCls}
+                  disabled={lockPrice}
+                  className={fieldCls + (lockPrice ? ' bg-gray-50 text-gray-400' : '')}
                 />
               </Field>
             </div>
+          )}
+          {lockPrice && (
+            <p className="text-[11px] text-gray-400 -mt-1">Você não tem permissão para alterar preços.</p>
           )}
 
           {/* Estoque (oculto em moda/kit — gerenciado por variação) */}
@@ -915,7 +925,8 @@ function ProductModal({
                         value={v.price_override}
                         onChange={e => updateVariant(i, 'price_override', e.target.value)}
                         placeholder="—"
-                        className={fieldClsXs}
+                        disabled={lockPrice && !!v.id}
+                        className={fieldClsXs + (lockPrice && v.id ? ' bg-gray-50 text-gray-400' : '')}
                       />
                       <button
                         type="button"
@@ -967,7 +978,8 @@ function ProductModal({
                 value={form.cost_price}
                 onChange={e => setForm(f => ({ ...f, cost_price: e.target.value }))}
                 placeholder="0,00"
-                className={fieldCls}
+                disabled={lockPrice}
+                className={fieldCls + (lockPrice ? ' bg-gray-50 text-gray-400' : '')}
               />
             </Field>
             <Field label="Estoque mínimo">
@@ -1082,8 +1094,10 @@ function Field({ label, children }) {
 export default function Produtos() {
   const { tenant } = useTenantContext()
   const { hasModule } = useModules()
-  const { can } = usePermissions()
+  const { can, role } = usePermissions()
   const canManage = can('can_manage_products')
+  const canEditPrices = can('can_edit_prices')
+  const isAdmin = role === 'admin' || role === 'superadmin'
   const orgId  = tenant?.id
   // theme_color so e usado se o PLANO ATUAL tiver a feature white_label --
   // checado na exibicao, nao no momento em que foi salvo.
@@ -1093,6 +1107,8 @@ export default function Produtos() {
   const [products, setProducts] = useState([])
   const [loading, setLoading]   = useState(true)
   const [modal, setModal]       = useState(null)   // null | 'new' | product
+  const [priceTarget, setPriceTarget] = useState(null) // produto em "Alterar preço"
+  const [historyOpen, setHistoryOpen] = useState(false)
   const [quickModal, setQuickModal] = useState(false)
   const [showAddMenu, setShowAddMenu] = useState(false)
   const [form, setForm]         = useState(EMPTY)
@@ -1274,6 +1290,9 @@ export default function Produtos() {
       variantRows = variants
         .filter(v => v.cor || v.attrVal)
         .map(v => ({
+          // id da variação: a RPC atualiza a mesma linha (histórico de preço
+          // certo); sem id, casa pelos atributos
+          id: v.id || null,
           org_id: orgId,
           attributes: effectiveSeg === 'kit'
             ? { tamanho: v.cor, pacote: v.attrVal }
@@ -1298,6 +1317,12 @@ export default function Produtos() {
       sku:             form.sku.trim() || null,
       category_id:     form.category_id || null,
       segment_id:      effectiveSeg,
+    }
+    // sem permissão de preço, editar não mexe em preço/custo (o banco
+    // recusaria; o preço inicial no cadastro novo continua liberado)
+    if (modal !== 'new' && !canEditPrices) {
+      delete payload.price
+      delete payload.cost_price
     }
 
     let productId
@@ -1597,6 +1622,17 @@ export default function Produtos() {
           <h1 className="text-xl font-black text-gray-900">Produtos</h1>
           <p className="text-xs text-gray-400 mt-0.5">{activeProducts.length} cadastrado{activeProducts.length !== 1 ? 's' : ''}</p>
         </div>
+        <div className="flex items-center gap-2">
+        {isAdmin && (
+          <button
+            onClick={() => setHistoryOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50 transition-colors"
+            title="Histórico de alterações"
+          >
+            <History size={15} />
+            <span className="hidden sm:inline">Histórico</span>
+          </button>
+        )}
         {canManage ? (
           <div className="relative">
             <button
@@ -1636,6 +1672,7 @@ export default function Produtos() {
             Sem permissão
           </div>
         )}
+        </div>
       </div>
 
       {/* ── Categories section ── */}
@@ -1938,6 +1975,15 @@ export default function Produtos() {
                           </button>
                         </>
                       )
+                    ) : canEditPrices && !p.archived_at ? (
+                      <button
+                        onClick={() => setPriceTarget(p)}
+                        className="flex items-center gap-1.5 px-3 h-8 rounded-xl bg-gray-50 hover:bg-blue-50 text-xs font-bold text-gray-500 hover:text-blue-600 transition-colors"
+                        title="Alterar preço"
+                      >
+                        <DollarSign size={13} />
+                        Alterar preço
+                      </button>
                     ) : (
                       <div title="Sem permissão para gerenciar produtos" className="w-8 h-8 rounded-xl bg-gray-50 flex items-center justify-center">
                         <Lock size={13} className="text-gray-300" />
@@ -1989,6 +2035,14 @@ export default function Produtos() {
                             <Pencil size={11} className="text-gray-400 group-hover:text-blue-600" />
                           </button>
                         )
+                      ) : canEditPrices && !p.archived_at ? (
+                        <button
+                          onClick={() => setPriceTarget(p)}
+                          className="w-6 h-6 rounded-lg bg-gray-50 hover:bg-blue-50 flex items-center justify-center transition-colors group"
+                          title="Alterar preço"
+                        >
+                          <DollarSign size={11} className="text-gray-400 group-hover:text-blue-600" />
+                        </button>
                       ) : (
                         <Lock size={11} className="text-gray-300" />
                       )}
@@ -2035,6 +2089,29 @@ export default function Produtos() {
           techForm={techForm}
           setTechForm={setTechForm}
           orgMinStock={tenant?.min_stock_alert || 5}
+          canEditPrices={canEditPrices}
+        />
+      )}
+
+      {/* Alterar preço (só preço/custo) */}
+      {priceTarget && (
+        <PriceOnlyModal
+          product={priceTarget}
+          isGrade={['moda', 'kit'].includes(resolveProductSegment(priceTarget, catSegmentMap, segment))}
+          orgId={orgId}
+          color={color}
+          onClose={() => setPriceTarget(null)}
+          onSaved={() => { setPriceTarget(null); load() }}
+        />
+      )}
+
+      {/* Histórico de alterações (admin) */}
+      {historyOpen && (
+        <ChangeHistoryModal
+          orgId={orgId}
+          products={products}
+          color={color}
+          onClose={() => setHistoryOpen(false)}
         />
       )}
 
