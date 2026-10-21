@@ -22,9 +22,14 @@ function respond(body: object) {
   })
 }
 
+// Cargos que a loja pode dar a um funcionário. 'admin' é o dono (criado só
+// pelo convite/create-owner) e 'superadmin' é da plataforma -- nenhum dos dois
+// sai daqui. O banco também barra superadmin com loja (trigger profiles_guard).
+const EMPLOYEE_ROLES = ['operador', 'gerente']
+
 function normalizeDomain(name: string): string {
   return (name || '').trim().toLowerCase()
-    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .normalize('NFD').replace(/\p{M}/gu, '')
     .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 }
 
@@ -71,10 +76,12 @@ Deno.serve(async (req) => {
     const { full_name, email, role, password, org_id } = rawBody
     const name   = full_name
     const handle = email
-    const orgId  = org_id
 
-    if (!name || !handle || !role || !password || !orgId) {
+    if (!name || !handle || !role || !password) {
       return respond({ error: 'Campos obrigatórios ausentes.' })
+    }
+    if (!EMPLOYEE_ROLES.includes(role)) {
+      return respond({ error: 'Cargo inválido. Escolha Operador ou Gerente.' })
     }
 
     const admin = createClient(
@@ -90,18 +97,27 @@ Deno.serve(async (req) => {
     const { data: { user: caller } } = await admin.auth.getUser(jwt)
     if (!caller) return respond({ error: 'Token inválido.' })
 
-    // Verificar se o chamador é admin desta org
+    // Chamador: admin ATIVO da loja, ou superadmin (modo suporte)
     const { data: cp } = await admin
       .from('profiles')
-      .select('role, org_id')
+      .select('role, org_id, access_status')
       .eq('id', caller.id)
       .single()
 
-    if (!cp || !['admin', 'superadmin'].includes(cp.role)) {
+    if (!cp || !['admin', 'superadmin'].includes(cp.role) || cp.access_status !== 'ativo') {
       return respond({ error: 'Apenas administradores podem criar funcionários.' })
     }
-    if (cp.role !== 'superadmin' && cp.org_id !== orgId) {
-      return respond({ error: 'Acesso negado a esta organização.' })
+
+    // A loja vem do perfil do admin, nunca do parâmetro. Só o superadmin
+    // (sem loja no perfil, atendendo pelo modo suporte) informa a loja.
+    let orgId: string
+    if (cp.role === 'superadmin') {
+      if (!org_id) return respond({ error: 'Campos obrigatórios ausentes.' })
+      orgId = org_id
+    } else {
+      if (!cp.org_id) return respond({ error: 'Acesso negado a esta organização.' })
+      if (org_id && org_id !== cp.org_id) return respond({ error: 'Acesso negado a esta organização.' })
+      orgId = cp.org_id
     }
 
     // Busca o slug da org -- e a base do dominio ficticio, sempre unico
