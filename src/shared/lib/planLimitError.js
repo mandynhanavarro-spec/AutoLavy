@@ -73,6 +73,10 @@ const PERMISSION_ERRORS = {
   PERFIL_ADMIN_PROTEGIDO:     'Outro administrador da loja só pode ser alterado pelo suporte.',
   LOJA_CAMPO_PROTEGIDO:       'Esse dado da loja só pode ser alterado pelo suporte.',
   LOJA_SEM_PERMISSAO:         'Só o administrador da loja pode alterar as configurações.',
+  VENDA_SEM_PERMISSAO:        'Você não tem permissão para estornar ou alterar vendas. Fale com o responsável.',
+  VENDA_CAMPO_PROTEGIDO:      'Esta venda não pode ser alterada.',
+  // recusa genérica da RLS (ex.: lançar movimento sem permissão)
+  'row-level security':       'Você não tem permissão para esta ação. Fale com o responsável.',
 }
 
 export function parsePermissionError(message) {
