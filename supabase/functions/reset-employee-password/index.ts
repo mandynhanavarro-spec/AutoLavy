@@ -41,26 +41,35 @@ Deno.serve(async (req) => {
     const { data: { user: caller } } = await admin.auth.getUser(jwt)
     if (!caller) return respond({ error: 'Token inválido.' })
 
-    // Verificar se o chamador é admin
+    // Verificar se o chamador é admin ATIVO (ou superadmin)
     const { data: cp } = await admin
       .from('profiles')
-      .select('role, org_id')
+      .select('role, org_id, access_status')
       .eq('id', caller.id)
       .single()
 
-    if (!cp || !['admin', 'superadmin'].includes(cp.role)) {
+    if (!cp || !['admin', 'superadmin'].includes(cp.role) || cp.access_status !== 'ativo') {
       return respond({ error: 'Apenas administradores podem resetar senhas.' })
     }
 
     // Verificar se o alvo pertence à mesma org
     const { data: target } = await admin
       .from('profiles')
-      .select('org_id, full_name')
+      .select('org_id, full_name, role')
       .eq('id', memberId)
       .single()
 
     if (!target) return respond({ error: 'Funcionário não encontrado.' })
-    if (cp.role !== 'superadmin' && target.org_id !== cp.org_id) {
+    if (cp.role !== 'superadmin') {
+      if (!cp.org_id || target.org_id !== cp.org_id) {
+        return respond({ error: 'Acesso negado a este funcionário.' })
+      }
+      // admin só reseta gerente/operador -- a senha de outro admin (sócio,
+      // dono) só o superadmin troca (mesma regra do trigger profiles_guard)
+      if (target.role === 'admin' || target.role === 'superadmin') {
+        return respond({ error: 'Só o suporte pode redefinir a senha de outro administrador.' })
+      }
+    } else if (target.role === 'superadmin') {
       return respond({ error: 'Acesso negado a este funcionário.' })
     }
 

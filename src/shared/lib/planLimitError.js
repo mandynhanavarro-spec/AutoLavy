@@ -70,6 +70,7 @@ const PERMISSION_ERRORS = {
   PERFIL_SUPERADMIN_COM_LOJA: 'Esse cargo não pode ser usado para funcionários da loja.',
   PERFIL_CAMPO_PROTEGIDO:     'Você não pode alterar esse dado. Peça ao administrador da loja.',
   PERFIL_SEM_PERMISSAO:       'Só o administrador da loja pode alterar a equipe.',
+  PERFIL_ADMIN_PROTEGIDO:     'Outro administrador da loja só pode ser alterado pelo suporte.',
   LOJA_CAMPO_PROTEGIDO:       'Esse dado da loja só pode ser alterado pelo suporte.',
   LOJA_SEM_PERMISSAO:         'Só o administrador da loja pode alterar as configurações.',
 }
